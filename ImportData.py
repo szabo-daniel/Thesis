@@ -81,11 +81,10 @@ for ticker in index_list:
     ticker_count += 1
 
 excess_returns = log_qtr_returns.copy()
-ticker_count = 0
 
 # Calculate excess index returns
 for ticker in index_names:
-    rf_column = f'Rf_{index_names[ticker_count]}'
+    rf_column = f'Rf_{ticker}'
     if rf_column in log_risk_free_rates.columns:
         excess_returns[ticker] = excess_returns[ticker] - log_risk_free_rates[rf_column]
 
