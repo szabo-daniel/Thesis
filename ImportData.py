@@ -1,29 +1,63 @@
 import numpy as np
 import pandas as pd
 import yfinance as yf
+from pandas_datareader import DataReader as web
 
 import warnings
 warnings.filterwarnings('ignore')
-pd.set_option('display.max_columns',None)
+pd.set_option('display.max_columns', None)
 
 # all_data = pd.read_excel('Country Data.xlsx',sheet_name='Macro Data',header=1,index_col=0)
 #
 # print(all_data)
 
 ########################################################################################################################
-# KEY ASSUMPTIONS, SET DATES, IMPORT INDEX DATA
+# DATA DICTIONARY
+#
+# 1. Dependent Variable
+# eqprem = Equity Risk Premium (for each index): index return - 3-month government bond yield
+#
+# 2. Indices
+# SP500 = S&P 500 (USA)
+# FTSE100 = FTSE 100 (UK)
+# ASX200 = S&P/ASX 200 (Australia)
+# N225 = Nikkei 225 (Japan)
+# DAX = DAX (Germany)
+# CAC40 = CAC 30 (France)
+#
+# 2. Factors (all percentage changes)
+# Rf = 3-month government bond yield
+# GDP = Quarterly GDP % change (OECD)
+# GFCF = Gross fixed capital formation (OECD)
+# Infl = Inflation less food and energy
+# RHousing = Real Housing Prices
+# Oil = Global Brent Crude oil prices
+
+########################################################################################################################
+# KEY ASSUMPTIONS, SET DATES, IMPORT INDEX AND RISK-FREE DATA, AND CALCULATE EXCESS RETURNS
 ########################################################################################################################
 
 # Dates
 start_date = '1993-01-01'
-end_date = '2023-12-31'
+end_date = '2023-10-01'
 
 # Indices (note: first 3 are from market-based economies, last 3 are from bank-based economies)
-index_list = ['^GSPC', '^FTSE','^AXJO', '^N225', '^GDAXI', '^FCHI']
-index_names = ['SP500', 'FTSE100','ASX200','N225','DAX','CAC40']
+index_list = ['^GSPC', '^FTSE', '^AXJO', '^N225', '^GDAXI', '^FCHI']
+index_names = ['SP500', 'FTSE100', 'ASX200', 'N225', 'DAX', 'CAC40']
 log_qtr_returns = pd.DataFrame()
 
-ticker_count = 0
+# Risk-free rates (will eventually include in factor-specific file for each country)
+# NOTE: ONLY HAS USA DATA FOR NOW, WILL GET OTHER DATA IN ON BLOOMBERG (note to self - change to end of period)
+risk_free_rates = pd.read_csv('RiskFreeRates.csv', index_col='Date',parse_dates=True)
+
+# Ensure risk-free rate DataFrame's index is in the same datetime format as returns dataframe
+risk_free_rates.index = pd.to_datetime(risk_free_rates.index)
+risk_free_rates.iloc[:,:] = risk_free_rates.iloc[:,:] / 100 # convert risk-free rates to decimal form
+risk_free_rates.index = risk_free_rates.index - pd.Timedelta(days=1) # due to way data is imported offset by one day
+risk_free_rates = risk_free_rates.iloc[1:] # eliminate first row to sync up dates
+log_risk_free_rates = np.log(1 + risk_free_rates)
+
+ticker_count = 0 #Iterator for renaming columns
 
 for ticker in index_list:
     # Import index price data from Yahoo Finance, keeping only the close prices
@@ -46,11 +80,56 @@ for ticker in index_list:
 
     ticker_count += 1
 
+excess_returns = log_qtr_returns.copy()
+ticker_count = 0
+
+# Calculate excess index returns
+for ticker in index_names:
+    rf_column = f'Rf_{index_names[ticker_count]}'
+    if rf_column in log_risk_free_rates.columns:
+        excess_returns[ticker] = excess_returns[ticker] - log_risk_free_rates[rf_column]
+
+# Test prints
+print(excess_returns)
 print(log_qtr_returns)
+print(risk_free_rates)
 
+########################################################################################################################
+# IMPORT MACRO FACTORS FOR EACH COUNTRY
+########################################################################################################################
 
+# Currently building out Excel file that includes macro factors for each economy.
+# Refer to Country Data.xlsx for current progress
 
+# Read in factors that apply to all countries (note to self: will compile these in Excel given the nature of data)
+# 1. Exchange rates (EUR, USD, JPY, AUD)
+# 2. Commodity prices (ex. Brent crude, metal prices)
+# 3. Fed Funds Rate
 
+# Read in factors that differ per country (will do via Excel) - a lot of these factors I sourced from APT research paper
+# 1. Dividend Yield
+# 2. Industrial production
+# 3. GDP
+# 4. GFCF
+# 5. Real housing prices
+# 6. Unemployment
+# 7. ECB rates
+# 8. Earnings
+# 9. Current Account balance
+# 10. Inflation (less food and energy)
+# 11. Real consumption
+# 12. Money Supply
+# 13. Retail Prices
+# 14. Capital Flows
+# 15. Wages
+# 16. Export Prices
+# 17. Domestic National Product
+# 18. Imports / Exports
+# 19. ...and more as I find 'em
+
+########################################################################################################################
+# BACKUP CODE DUMP (will delete later)
+########################################################################################################################
 # for ticker in index_list:
 #     data = yf.download(ticker, start=start_date, end=end_date)
 #     data = data.drop(['Open', 'Low', 'High', 'Adj Close', 'Volume'], axis=1)
