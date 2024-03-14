@@ -89,7 +89,6 @@ for ticker in index_names:
 print(excess_returns)
 print(log_qtr_returns)
 print(risk_free_rates)
-
 ########################################################################################################################
 # IMPORT MACRO FACTORS FOR EACH COUNTRY
 ########################################################################################################################
@@ -98,14 +97,26 @@ print(risk_free_rates)
 # Refer to Country Data.xlsx for current progress
 # The final version of data will be in the following form:
 # Date | Factor | ... for countries. Will have separate dataframe for each country
+
+# Organize dataframes for analysis - beginning with excess returns
 US_data = pd.DataFrame()
+US_data['ER'] = excess_returns['SP500']
+print(US_data)
+
 UK_data = pd.DataFrame()
+UK_data['ER'] = excess_returns['FTSE100']
+
 AU_data = pd.DataFrame()
+AU_data['ER'] = excess_returns['ASX200']
+
 DE_data = pd.DataFrame()
+DE_data['ER'] = excess_returns['DAX']
+
 FR_data = pd.DataFrame()
+FR_data['ER'] = excess_returns['CAC40']
+
 JP_data = pd.DataFrame()
-
-
+JP_data['ER'] = excess_returns['N225']
 
 # Read in factors that apply to all countries (note to self: will compile these in Excel given the nature of data)
 # 1. Exchange rates (EUR, USD, JPY, AUD)
@@ -165,11 +176,10 @@ JP_data = pd.DataFrame()
 #
 # print(quarterly_returns.head())
 
-
+# This matches CRSP returns exactly
 # index_ticker = '^GSPC'
 # data = yf.download(index_ticker, start = start_date, end = end_date)
 # data = data.drop(['Open', 'Low', 'High', 'Adj Close', 'Volume'], axis=1)
 # data = data.pct_change()
-# data = data.resample('M').agg(lambda x: (x+1).prod() - 1) #WORKS
-#
+# data = data.resample('M').agg(lambda x: (x+1).prod() - 1)
 # print(data)
