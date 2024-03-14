@@ -38,6 +38,7 @@ start_date = '1993-01-01'
 end_date = '2023-10-01'
 
 # Indices (note: first 3 are from market-based economies, last 3 are from bank-based economies)
+# May replace with MSCI data if I can get it
 index_list = ['^GSPC', '^FTSE', '^AXJO', '^N225', '^GDAXI', '^FCHI']
 index_names = ['SP500', 'FTSE100', 'ASX200', 'N225', 'DAX', 'CAC40']
 log_qtr_returns = pd.DataFrame()
@@ -53,7 +54,7 @@ risk_free_rates.index = risk_free_rates.index - pd.Timedelta(days=1) # due to wa
 risk_free_rates = risk_free_rates.iloc[1:] # eliminate first row to sync up dates
 log_risk_free_rates = np.log(1 + risk_free_rates) # convert to log risk-free
 
-ticker_count = 0 #Iterator for renaming columns
+ticker_count = 0 # Iterator for renaming columns
 
 for ticker in index_list:
     # Import index price data from Yahoo Finance, keeping only the close prices
@@ -63,7 +64,7 @@ for ticker in index_list:
     # Convert prices to log returns - log(R) = log(Pt / Pt-1)
     log_returns = np.log(data/data.shift(1))
 
-    #Resample log returns to quarterly time frame
+    # Resample log returns to quarterly time frame
     log_qtr_returns_data = log_returns.resample('Q').sum()
     log_qtr_returns_data.rename(columns={'Close': index_names[ticker_count]}, inplace=True) #rename dataframe columns
 
@@ -96,7 +97,15 @@ print(risk_free_rates)
 # Currently building out Excel file that includes macro factors for each economy.
 # Refer to Country Data.xlsx for current progress
 # The final version of data will be in the following form:
-# Date | CountryCode_Factor | ... for all factors and countries. Will iterate through or divide
+# Date | Factor | ... for countries. Will have separate dataframe for each country
+US_data = pd.DataFrame()
+UK_data = pd.DataFrame()
+AU_data = pd.DataFrame()
+DE_data = pd.DataFrame()
+FR_data = pd.DataFrame()
+JP_data = pd.DataFrame()
+
+
 
 # Read in factors that apply to all countries (note to self: will compile these in Excel given the nature of data)
 # 1. Exchange rates (EUR, USD, JPY, AUD)
@@ -123,6 +132,18 @@ print(risk_free_rates)
 # 17. Domestic National Product
 # 18. Imports / Exports
 # 19. ...and more as I find 'em
+
+########################################################################################################################
+# SPLIT DATA INTO TRAINING/VALIDATION/TEST SETS; EVALUATE FACTORS
+########################################################################################################################
+# Mostly placeholders for now, playing around with logic
+# all_index_data = pd.DataFrame() # will store all index + factor dataframes
+
+
+
+
+
+
 
 ########################################################################################################################
 # BACKUP CODE DUMP (will delete later)
