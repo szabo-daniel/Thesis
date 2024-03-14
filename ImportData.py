@@ -7,13 +7,9 @@ import warnings
 warnings.filterwarnings('ignore')
 pd.set_option('display.max_columns', None)
 
-# all_data = pd.read_excel('Country Data.xlsx',sheet_name='Macro Data',header=1,index_col=0)
-#
-# print(all_data)
-
 ########################################################################################################################
 # DATA DICTIONARY
-#
+########################################################################################################################
 # 1. Dependent Variable
 # eqprem = Equity Risk Premium (for each index): index return - 3-month government bond yield
 #
@@ -37,7 +33,7 @@ pd.set_option('display.max_columns', None)
 # KEY ASSUMPTIONS, SET DATES, IMPORT INDEX AND RISK-FREE DATA, AND CALCULATE EXCESS RETURNS
 ########################################################################################################################
 
-# Dates
+# Dates (Q1 1993 - Q3 2023)
 start_date = '1993-01-01'
 end_date = '2023-10-01'
 
@@ -52,10 +48,10 @@ risk_free_rates = pd.read_csv('RiskFreeRates.csv', index_col='Date',parse_dates=
 
 # Ensure risk-free rate DataFrame's index is in the same datetime format as returns dataframe
 risk_free_rates.index = pd.to_datetime(risk_free_rates.index)
-risk_free_rates.iloc[:,:] = risk_free_rates.iloc[:,:] / 100 # convert risk-free rates to decimal form
+risk_free_rates.iloc[:, :] = risk_free_rates.iloc[:, :] / 100 # convert risk-free rates to decimal form
 risk_free_rates.index = risk_free_rates.index - pd.Timedelta(days=1) # due to way data is imported offset by one day
 risk_free_rates = risk_free_rates.iloc[1:] # eliminate first row to sync up dates
-log_risk_free_rates = np.log(1 + risk_free_rates)
+log_risk_free_rates = np.log(1 + risk_free_rates) # convert to log risk-free
 
 ticker_count = 0 #Iterator for renaming columns
 
@@ -99,6 +95,8 @@ print(risk_free_rates)
 
 # Currently building out Excel file that includes macro factors for each economy.
 # Refer to Country Data.xlsx for current progress
+# The final version of data will be in the following form:
+# Date | CountryCode_Factor | ... for all factors and countries. Will iterate through or divide
 
 # Read in factors that apply to all countries (note to self: will compile these in Excel given the nature of data)
 # 1. Exchange rates (EUR, USD, JPY, AUD)
