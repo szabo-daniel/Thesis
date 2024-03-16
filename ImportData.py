@@ -106,6 +106,7 @@ print(US_data)
 UK_data = pd.DataFrame()
 UK_data['ER'] = excess_returns['FTSE100']
 
+
 AU_data = pd.DataFrame()
 AU_data['ER'] = excess_returns['ASX200']
 
