@@ -1,7 +1,13 @@
 import numpy as np
 import pandas as pd
 import yfinance as yf
+import seaborn as sb
+import matplotlib.pyplot as plt
 from pandas_datareader import DataReader as web
+
+from sklearn.feature_selection import SelectKBest
+from sklearn.feature_selection import f_regression
+
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -11,7 +17,7 @@ pd.set_option('display.max_columns', None)
 # DATA DICTIONARY
 ########################################################################################################################
 # 1. Dependent Variable
-# eqprem = Equity Risk Premium (for each index): index return - 3-month government bond yield
+# eqprem = Equity Risk Premium (for each index): index return - 3-month government bond yield (or 2 year)
 #
 # 2. Indices
 # SP500 = S&P 500 (USA)
@@ -99,60 +105,125 @@ print(risk_free_rates)
 # Date | Factor | ... for countries. Will have separate dataframe for each country
 
 # Organize dataframes for analysis - beginning with excess returns
+
+# United States
+# Line up quarterly dates for appending
+US_factors = pd.read_excel('Country Data.xlsx', sheet_name='US Data', index_col='Date', parse_dates=True)
+US_factors.index = US_factors.index - pd.Timedelta(days=1)
+
+# Create list of all columns to iterate through
+US_factor_list = US_factors.columns.tolist()
+
 US_data = pd.DataFrame()
 US_data['ER'] = excess_returns['SP500']
-print(US_data)
 
-UK_data = pd.DataFrame()
-UK_data['ER'] = excess_returns['FTSE100']
+# Read in all factors from list of given factors into one dataframe
+for factor in US_factor_list:
+    US_data[factor] = US_factors[factor]
 
+# # United Kingdom
+# UK_factors = pd.read_excel('Country Data.xlsx', sheet_name='UK Data',index_col='Date',parse_dates=True)
+# UK_factors.index = UK_factors.index - pd.Timedelta(days=1)
+#
+# UK_factor_list = UK_factors.columns.tolist()
+#
+# UK_data = pd.DataFrame()
+# UK_data['ER'] = excess_returns['FTSE100']
+#
+# for factor in UK_factor_list:
+#     UK_data[factor] = UK_factors[factor]
+#
+# # Australia
+# AU_factors = pd.read_excel('Country Data.xlsx', sheet_name='AU Data',index_col='Date',parse_dates=True)
+# AU_factors.index = AU_factors.index - pd.Timedelta(days=1)
+#
+# AU_factor_list = AU_factors.columns.tolist()
+#
+# AU_data = pd.DataFrame()
+# AU_data['ER'] = excess_returns['ASX200']
+#
+# for factor in AU_factor_list:
+#     AU_data[factor] = AU_factors[factor]
+#
+# # Germany
+# DE_factors = pd.read_excel('Country Data.xlsx', sheet_name='DE Data',index_col='Date',parse_dates=True)
+# DE_factors.index = DE_factors.index - pd.Timedelta(days=1)
+#
+# DE_factor_list = DE_factors.columns.tolist()
+#
+# DE_data = pd.DataFrame()
+# DE_data['ER'] = excess_returns['DAX']
+#
+# for factor in DE_factor_list:
+#     DE_data[factor] = DE_factors[factor]
+#
+# # France
+# FR_factors = pd.read_excel('Country Data.xlsx', sheet_name='FR Data',index_col='Date',parse_dates=True)
+# FR_factors.index = FR_factors.index - pd.Timedelta(days=1)
+#
+# FR_factor_list = FR_factors.columns.tolist()
+#
+# FR_data = pd.DataFrame()
+# FR_data['ER'] = excess_returns['CAC40']
+#
+# for factor in FR_factor_list:
+#     FR_data[factor] = FR_factors[factor]
+#
+# # Japan
+# JP_factors = pd.read_excel('Country Data.xlsx', sheet_name='JP Data',index_col='Date',parse_dates=True)
+# JP_factors.index = JP_factors.index - pd.Timedelta(days=1)
+#
+# JP_factor_list = JP_factors.columns.tolist()
+#
+# JP_data = pd.DataFrame()
+# JP_data['ER'] = excess_returns['N225']
+#
+# for factor in JP_factor_list:
+#     JP_data[factor] = JP_factors[factor]
 
-AU_data = pd.DataFrame()
-AU_data['ER'] = excess_returns['ASX200']
-
-DE_data = pd.DataFrame()
-DE_data['ER'] = excess_returns['DAX']
-
-FR_data = pd.DataFrame()
-FR_data['ER'] = excess_returns['CAC40']
-
-JP_data = pd.DataFrame()
-JP_data['ER'] = excess_returns['N225']
-
-# Read in factors that apply to all countries (note to self: will compile these in Excel given the nature of data)
-# 1. Exchange rates (EUR, USD, JPY, AUD)
-# 2. Commodity prices (ex. Brent crude, metal prices)
-# 3. Fed Funds Rate
-
-# Read in factors that differ per country (will do via Excel) - a lot of these factors I sourced from APT research paper
-# 1. Dividend Yield
-# 2. Industrial production
-# 3. GDP
-# 4. GFCF
-# 5. Real housing prices
-# 6. Unemployment
-# 7. ECB rates
-# 8. Earnings
-# 9. Current Account balance
-# 10. Inflation (less food and energy)
-# 11. Real consumption
-# 12. Money Supply
-# 13. Retail Prices
-# 14. Capital Flows
-# 15. Wages
-# 16. Export Prices
-# 17. Domestic National Product
-# 18. Imports / Exports
-# 19. ...and more as I find 'em
-
+# Note: build in benchmark regression model
 ########################################################################################################################
-# SPLIT DATA INTO TRAINING/VALIDATION/TEST SETS; EVALUATE FACTORS
+# SPLIT DATA INTO TRAINING, VALIDATION, AND TEST SETS, EVALUATE FEATURES
 ########################################################################################################################
-# Mostly placeholders for now, playing around with logic
-# all_index_data = pd.DataFrame() # will store all index + factor dataframes
+# countries = [US_data, UK_data, AU_data, DE_data, FR_data, JP_data]
+US_data = US_data[:-1]
+countries = [US_data]
 
+for country_data in countries:
+    n_factors = len(US_factor_list)
 
+    factor_names = country_data.columns.tolist()
+    factors = country_data[factor_names]
+    target = country_data['ER']
 
+    #Plot correlations of factors
+    sb.heatmap(factors.corr(), annot=True, cbar=False)
+    plt.title('Correlation Matrix - All Factors')
+    plt.show()
+
+    sb.heatmap(factors.corr() > 0.9, annot=True, cbar=False)
+    plt.title('Correlation Matrix - All Factors Above 0.9 Correlation')
+    plt.show()
+
+    sb.heatmap(factors.corr() < -0.9, annot=True, cbar=False)
+    plt.title('Correlation Matrix - All Factors Below -0.9 Correlation')
+    plt.show()
+
+    bestFactors = SelectKBest(k='all',score_func=f_regression)
+    fit = bestFactors.fit(factors, target)
+    data_scores = pd.DataFrame(fit.scores_)
+    data_cols = pd.DataFrame(factors.columns)
+    factorScores = pd.concat([data_scores, data_cols], axis = 1)
+    factorScores.columns = ['Factors', 'Score']
+    print(factorScores.nlargest(n_factors, 'Score').set_index('Factors')) # Issue with code here - debug
+
+    # # Plot feature importances on a bar chart
+    # sb.set(style = 'whitegrid')
+    # sb.barplot(x = 'Score', y = 'Factors', data = factorScores.nlargest(n_factors,'Score'))
+    # plt.xlabel('Score')
+    # plt.ylabel('Factors')
+    # plt.title('Factor Scores')
+    # plt.show()
 
 
 
@@ -184,3 +255,24 @@ JP_data['ER'] = excess_returns['N225']
 # data = data.pct_change()
 # data = data.resample('M').agg(lambda x: (x+1).prod() - 1)
 # print(data)
+
+# Read in factors that differ per country (will do via Excel) - a lot of these factors I sourced from APT research paper
+# 1. Dividend Yield
+# 2. Industrial production
+# 3. GDP
+# 4. GFCF
+# 5. Real housing prices
+# 6. Unemployment
+# 7. ECB rates
+# 8. Earnings
+# 9. Current Account balance
+# 10. Inflation (less food and energy)
+# 11. Real consumption
+# 12. Money Supply
+# 13. Retail Prices
+# 14. Capital Flows
+# 15. Wages
+# 16. Export Prices
+# 17. Domestic National Product
+# 18. Imports / Exports
+# 19. ...and more as I find 'em
