@@ -6,8 +6,15 @@ import matplotlib.pyplot as plt
 import statsmodels.api as sm
 from pandas_datareader import DataReader as web
 
+import tensorflow as tf
 from sklearn.feature_selection import SelectKBest
 from sklearn.feature_selection import f_regression
+
+from sklearn.preprocessing import MinMaxScaler #scales data to 0-1 range for neural network training
+
+from keras import Sequential
+from keras.layers import LSTM
+from keras.layers import Dense
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -220,6 +227,21 @@ for country_data in countries:
     model = sm.OLS(y,x).fit()
     print(model.summary())
 
+    print(factors)
+    print(len(factors))
+    print(target)
+    print(len(target))
+
+    scaler = MinMaxScaler(feature_range=(0,1))
+
+    factors_scaled = scaler.fit_transform(country_data.iloc[:,1:]) #an array of all values, want this to just rescale each factor
+    print(factors_scaled)
+
+    train_size = int(0.70 * factors.shape[0])
+
+    train_data = country_data[:train_size] #refine
+    test_data = country_data[train_size:]
+
     # bestFactors = SelectKBest(k='all',score_func=f_regression)
     # fit = bestFactors.fit(factors, target)
     # data_scores = pd.DataFrame(fit.scores_)
@@ -235,6 +257,11 @@ for country_data in countries:
     # plt.ylabel('Factors')
     # plt.title('Factor Scores')
     # plt.show()
+
+########################################################################################################################
+# LSTM model base
+
+model = Sequential()
 
 
 
