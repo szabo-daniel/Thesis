@@ -3,11 +3,11 @@ import pandas as pd
 import yfinance as yf
 import seaborn as sb
 import matplotlib.pyplot as plt
+import statsmodels.api as sm
 from pandas_datareader import DataReader as web
 
 from sklearn.feature_selection import SelectKBest
 from sklearn.feature_selection import f_regression
-
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -115,7 +115,7 @@ US_factors.index = US_factors.index - pd.Timedelta(days=1)
 US_factor_list = US_factors.columns.tolist()
 
 US_data = pd.DataFrame()
-US_data['ER'] = excess_returns['SP500']
+US_data['ER'] = excess_returns['SP500']*100
 
 # Read in all factors from list of given factors into one dataframe
 for factor in US_factor_list:
@@ -183,14 +183,15 @@ for factor in US_factor_list:
 
 # Note: build in benchmark regression model
 ########################################################################################################################
-# SPLIT DATA INTO TRAINING, VALIDATION, AND TEST SETS, EVALUATE FEATURES
+# DATA EXPLORATION
 ########################################################################################################################
 # countries = [US_data, UK_data, AU_data, DE_data, FR_data, JP_data]
 US_data = US_data[:-1]
 countries = [US_data]
+print(US_data)
 
 for country_data in countries:
-    n_factors = len(US_factor_list)
+    # n_factors = len(US_factor_list)
 
     factor_names = country_data.columns.tolist()
     factors = country_data[factor_names]
@@ -209,13 +210,23 @@ for country_data in countries:
     plt.title('Correlation Matrix - All Factors Below -0.9 Correlation')
     plt.show()
 
-    bestFactors = SelectKBest(k='all',score_func=f_regression)
-    fit = bestFactors.fit(factors, target)
-    data_scores = pd.DataFrame(fit.scores_)
-    data_cols = pd.DataFrame(factors.columns)
-    factorScores = pd.concat([data_scores, data_cols], axis = 1)
-    factorScores.columns = ['Factors', 'Score']
-    print(factorScores.nlargest(n_factors, 'Score').set_index('Factors')) # Issue with code here - debug
+    print(country_data.describe())
+    print(country_data.median())
+
+    y = country_data.iloc[:,0]
+    x = country_data.iloc[:,1:]
+    x = sm.add_constant(x)
+
+    model = sm.OLS(y,x).fit()
+    print(model.summary())
+
+    # bestFactors = SelectKBest(k='all',score_func=f_regression)
+    # fit = bestFactors.fit(factors, target)
+    # data_scores = pd.DataFrame(fit.scores_)
+    # data_cols = pd.DataFrame(factors.columns)
+    # factorScores = pd.concat([data_scores, data_cols], axis = 1)
+    # factorScores.columns = ['Factors', 'Score']
+    # print(factorScores.nlargest(n_factors, 'Score').set_index('Factors')) # Issue with code here - debug
 
     # # Plot feature importances on a bar chart
     # sb.set(style = 'whitegrid')
