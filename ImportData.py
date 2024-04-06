@@ -227,10 +227,10 @@ for country_data in countries:
     model = sm.OLS(y,x).fit()
     print(model.summary())
 
-    print(factors)
-    print(len(factors))
-    print(target)
-    print(len(target))
+    # print(factors)
+    # print(len(factors))
+    # print(target)
+    # print(len(target))
 
     scaler = MinMaxScaler(feature_range=(0,1))
 
@@ -242,13 +242,6 @@ for country_data in countries:
     train_data = country_data[:train_size] #refine
     test_data = country_data[train_size:]
 
-    # bestFactors = SelectKBest(k='all',score_func=f_regression)
-    # fit = bestFactors.fit(factors, target)
-    # data_scores = pd.DataFrame(fit.scores_)
-    # data_cols = pd.DataFrame(factors.columns)
-    # factorScores = pd.concat([data_scores, data_cols], axis = 1)
-    # factorScores.columns = ['Factors', 'Score']
-    # print(factorScores.nlargest(n_factors, 'Score').set_index('Factors')) # Issue with code here - debug
 
     # # Plot feature importances on a bar chart
     # sb.set(style = 'whitegrid')
