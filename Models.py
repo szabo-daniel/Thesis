@@ -117,6 +117,8 @@ for country_data in countries:
     rmse = sqrt(mean_squared_error(test_targets, predictions))
     print(f'RMSE: {rmse}')
 
+    #
+
 
 
 
