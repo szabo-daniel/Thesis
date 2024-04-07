@@ -58,11 +58,11 @@ log_qtr_returns = pd.DataFrame()
 
 # Risk-free rates (will eventually include in factor-specific file for each country)
 # NOTE: ONLY HAS USA DATA FOR NOW, WILL GET OTHER DATA IN ON BLOOMBERG (note to self - change to end of period)
-risk_free_rates = pd.read_csv('RiskFreeRates.csv', index_col='Date',parse_dates=True)
+risk_free_rates = pd.read_csv('RiskFreeRates.csv', index_col='Date',parse_dates=True) # ERROR if risk-free rate = 0 since we take log version
 
 # Ensure risk-free rate DataFrame's index is in the same datetime format as returns dataframe
 risk_free_rates.index = pd.to_datetime(risk_free_rates.index)
-risk_free_rates.iloc[:, :] = risk_free_rates.iloc[:, :] / 100 # convert risk-free rates to decimal form
+# risk_free_rates.iloc[:, :] = risk_free_rates.iloc[:, :] / 100 # convert risk-free rates to decimal form
 risk_free_rates.index = risk_free_rates.index - pd.Timedelta(days=1) # due to way data is imported offset by one day
 risk_free_rates = risk_free_rates.iloc[1:] # eliminate first row to sync up dates
 log_risk_free_rates = np.log(1 + risk_free_rates) # convert to log risk-free
@@ -187,77 +187,6 @@ for factor in US_factor_list:
 #
 # for factor in JP_factor_list:
 #     JP_data[factor] = JP_factors[factor]
-
-# Note: build in benchmark regression model
-########################################################################################################################
-# DATA EXPLORATION
-########################################################################################################################
-# countries = [US_data, UK_data, AU_data, DE_data, FR_data, JP_data]
-US_data = US_data[:-1]
-countries = [US_data]
-print(US_data)
-
-for country_data in countries:
-    # n_factors = len(US_factor_list)
-
-    factor_names = country_data.columns.tolist()
-    factors = country_data[factor_names]
-    target = country_data['ER']
-
-    #Plot correlations of factors
-    sb.heatmap(factors.corr(), annot=True, cbar=False)
-    plt.title('Correlation Matrix - All Factors')
-    plt.show()
-
-    sb.heatmap(factors.corr() > 0.9, annot=True, cbar=False)
-    plt.title('Correlation Matrix - All Factors Above 0.9 Correlation')
-    plt.show()
-
-    sb.heatmap(factors.corr() < -0.9, annot=True, cbar=False)
-    plt.title('Correlation Matrix - All Factors Below -0.9 Correlation')
-    plt.show()
-
-    print(country_data.describe())
-    print(country_data.median())
-
-    y = country_data.iloc[:,0]
-    x = country_data.iloc[:,1:]
-    x = sm.add_constant(x)
-
-    model = sm.OLS(y,x).fit()
-    print(model.summary())
-
-    # print(factors)
-    # print(len(factors))
-    # print(target)
-    # print(len(target))
-
-    scaler = MinMaxScaler(feature_range=(0,1))
-
-    factors_scaled = scaler.fit_transform(country_data.iloc[:,1:]) #an array of all values, want this to just rescale each factor
-    print(factors_scaled)
-
-    train_size = int(0.70 * factors.shape[0])
-
-    train_data = country_data[:train_size] #refine
-    test_data = country_data[train_size:]
-
-
-    # # Plot feature importances on a bar chart
-    # sb.set(style = 'whitegrid')
-    # sb.barplot(x = 'Score', y = 'Factors', data = factorScores.nlargest(n_factors,'Score'))
-    # plt.xlabel('Score')
-    # plt.ylabel('Factors')
-    # plt.title('Factor Scores')
-    # plt.show()
-
-########################################################################################################################
-# LSTM model base
-
-model = Sequential()
-
-
-
 
 ########################################################################################################################
 # BACKUP CODE DUMP (will delete later)
