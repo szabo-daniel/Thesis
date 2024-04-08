@@ -10,7 +10,7 @@ from keras.layers import LSTM
 from keras.layers import Dropout
 from keras.layers import Dense
 from math import sqrt
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, r2_score
 
 US_data = US_data[:-1]
 countries = [US_data]
@@ -57,7 +57,9 @@ for country_data in countries:
     print(performance.head())
 
     rmse_OLS = sqrt(mean_squared_error(y_test, y_pred))
+    oos_r2_OLS = r2_score(y_test, y_pred)
     print(f'RMSE: {rmse_OLS}')
+    print(f'OOS R2 {oos_r2_OLS}')
 
     # Plot errors
     performance.reset_index(drop=True, inplace=True)
@@ -104,20 +106,23 @@ for country_data in countries:
     test_factors = np.reshape(test_factors, (test_factors.shape[0], test_factors.shape[1], 1))
 
     # LSTM model
-    model = Sequential()
+    model = Sequential() # initialize the neural network
     model.add(LSTM(50, activation='relu', input_shape=(train_factors.shape[1], 1)))
     model.add(Dense(1))
     model.compile(optimizer = 'adam', loss = 'mean_squared_error')
 
     # Train model
     model.fit(train_factors, train_targets, epochs = 100, verbose = 0)
+    # model.fit(train_factors, train_targets, epochs=100)
 
     # Prediction & evaluation
     predictions = model.predict(test_factors)
     rmse = sqrt(mean_squared_error(test_targets, predictions))
+    oos_r2 = r2_score(test_targets, predictions)
     print(f'RMSE: {rmse}')
+    print(f'OOS R2: {oos_r2}')
 
-    #
+
 
 
 
