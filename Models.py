@@ -41,6 +41,8 @@ for country_data in countries:
     X = X.iloc[1:,:] # omit first row due to NaN record
     y = y.iloc[1:] # omit first row to create same number of rows for models
 
+
+
     # MODEL 1 - OLS REGRESSION
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42,shuffle=False)
 

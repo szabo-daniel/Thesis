@@ -122,7 +122,9 @@ US_factors.index = US_factors.index - pd.Timedelta(days=1)
 US_factor_list = US_factors.columns.tolist()
 
 US_data = pd.DataFrame()
-US_data['ER'] = excess_returns['SP500']*100
+# US_data['ER'] = excess_returns['SP500']*100
+US_data['ER'] = excess_returns['SP500']
+print(US_data)
 
 # Read in all factors from list of given factors into one dataframe
 for factor in US_factor_list:
