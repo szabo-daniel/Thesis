@@ -13,6 +13,11 @@ from math import sqrt
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import ParameterGrid
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.feature_selection import SelectKBest
+from sklearn.model_selection import cross_val_score
+from sklearn.preprocessing import scale
 
 US_data = US_data[:-1]
 countries = [US_data]
@@ -91,16 +96,29 @@ for country_data in countries:
     # print(targets)
 
     # Rescale data to be between 0 and 1 for use in machine learning models
-    scaler = MinMaxScaler()
-    factors_rescaled = scaler.fit_transform(factors)
-    factors_rescaled = pd.DataFrame(factors_rescaled, columns=factors.columns, index=factors.index)
-    # print(factors_rescaled)
+    # scaler = MinMaxScaler()
+    # factors_rescaled = scaler.fit_transform(factors)
+    # factors_rescaled = pd.DataFrame(factors_rescaled, columns=factors.columns, index=factors.index)
+    # targets_rescaled = scaler.fit_transform(targets)
+    # targets_rescaled = pd.DataFrame(targets_rescaled, columns=targets.columns, index=targets.index)
 
     train_size = int(0.80 * factors.shape[0])
+    # train_factors = factors[:train_size]
+    # train_targets = targets[:train_size]
+    # test_factors = factors[train_size:]
+    # test_targets = targets[train_size:]
     train_factors = factors[:train_size]
     train_targets = targets[:train_size]
     test_factors = factors[train_size:]
     test_targets = targets[train_size:]
+
+    train_factors = scale(train_factors)
+    test_factors = scale(test_factors)
+    # print('RESCALED FACTORS')
+    # print(factors_rescaled)
+    # print('RESCALED TARGETS')
+    # print(targets_rescaled)
+
 
     # reshape targets to match keras expectations
     train_targets = train_targets.values.reshape(-1, 1)
@@ -123,6 +141,7 @@ for country_data in countries:
     predictions = model.predict(test_factors)
     rmse = sqrt(mean_squared_error(test_targets, predictions))
     oos_r2 = r2_score(test_targets, predictions)
+    print('LSTM Metrics')
     print(f'RMSE: {rmse}')
     print(f'OOS R2: {oos_r2}')
 
@@ -164,8 +183,55 @@ for country_data in countries:
     rf_test_score = rf_model.score(test_factors, test_targets)
     oos_r2_rf = r2_score(test_targets, y_pred_rf)
 
+    print('Optimized Random Forest Metrics')
     print(f'RMSE: {sqrt(mean_squared_error(test_targets, y_pred_rf))}')
     print(f'OOS R2: {oos_r2_rf}')
+
+    # Decision Tree
+    dt_model = DecisionTreeRegressor()
+    dt_model.fit(train_factors, train_targets)
+
+    y_pred_dt = dt_model.predict(test_factors)
+
+    oos_r2_dt = r2_score(test_targets, y_pred_dt)
+
+    # Evaluate model performance
+    print('Decision Tree Metrics')
+    print(f'RMSE: {sqrt(mean_squared_error(test_targets, y_pred_dt))}')
+    print(f'OOS R2: {oos_r2_dt}')
+
+    # KNN Model
+    knn_train_scores = []
+    knn_test_scores = []
+    cv_scores = []
+    max_test_score = -np.inf
+    max_test_metrics = None
+    max_test_neighbors = None
+
+    for i in range(2, 80):
+        print(f'Building model for {i} neighbors...')
+        knn_model = KNeighborsRegressor(n_neighbors=i)
+
+        scores = cross_val_score(knn_model, train_factors, train_targets, cv=5, scoring='neg_mean_squared_error')
+        cv_scores.append(-scores.mean())
+
+        knn_model.fit(train_factors, train_targets)
+
+        y_pred_knn = knn_model.predict(test_factors)
+
+    optimal_n = np.argmin(cv_scores) + 2
+    print()
+    print(f'Optimal number of neighbors is {optimal_n}')
+    knn_model_opt = KNeighborsRegressor(n_neighbors=optimal_n)
+    knn_model_opt.fit(train_factors, train_targets)
+
+    y_pred_knn_opt = knn_model_opt.predict(test_factors)
+    oos_r2_knn_opt = r2_score(test_targets, y_pred_knn_opt)
+
+    # Evaluate model performance
+    print('Optimized KNN Metrics')
+    print(f'RMSE: {sqrt(mean_squared_error(test_targets, y_pred_knn_opt))}')
+    print(f'OOS R2: {oos_r2_knn_opt}')
 
 
 
