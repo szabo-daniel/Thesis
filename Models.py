@@ -11,6 +11,8 @@ from keras.layers import Dropout
 from keras.layers import Dense
 from math import sqrt
 from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import ParameterGrid
 
 US_data = US_data[:-1]
 countries = [US_data]
@@ -123,6 +125,50 @@ for country_data in countries:
     oos_r2 = r2_score(test_targets, predictions)
     print(f'RMSE: {rmse}')
     print(f'OOS R2: {oos_r2}')
+
+    # Random forest model
+
+    # print('FEATURE COUNT', len(country_data.columns))
+    total_feature_count = int(len(country_data.columns))
+    test_scores_rf = []
+
+    train_factors = factors[:train_size]
+    train_targets = targets[:train_size]
+    test_factors = factors[train_size:]
+    test_targets = targets[train_size:]
+
+    grid_rf = {'n_estimators': [50, 100, 150, 200],
+               'max_depth': [3, 4, 5, 6, 7],
+               'max_features': [total_feature_count-5, total_feature_count-4, total_feature_count-3, total_feature_count-2, total_feature_count-1],
+               'random_state': [42]}
+
+    rf_model = RandomForestRegressor()
+
+    for g in ParameterGrid(grid_rf):
+        rf_model.set_params(**g)
+        rf_model.fit(train_factors, train_targets)
+        test_scores_rf.append(rf_model.score(test_factors, test_targets))
+        print(f'Iterating through parameter grid: {g}...')
+
+    best_index = np.argmax(test_scores_rf)
+    print(test_scores_rf[best_index], ParameterGrid(grid_rf)[best_index])
+
+    # Create random forest model with best parameters from grid:
+    rf_model = RandomForestRegressor(n_estimators=200, max_depth=3, max_features=15, random_state=42)
+    rf_model.fit(train_factors, train_targets)
+
+    y_pred_rf = rf_model.predict(test_factors)
+
+    # Evaluate model performance
+    rf_train_score = rf_model.score(train_factors, train_targets)
+    rf_test_score = rf_model.score(test_factors, test_targets)
+    oos_r2_rf = r2_score(test_targets, y_pred_rf)
+
+    print(f'RMSE: {sqrt(mean_squared_error(test_targets, y_pred_rf))}')
+    print(f'OOS R2: {oos_r2_rf}')
+
+
+
 
 
 
