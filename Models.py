@@ -10,7 +10,7 @@ from keras.layers import LSTM
 from keras.layers import Dropout
 from keras.layers import Dense
 from math import sqrt
-from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_percentage_error
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import ParameterGrid
 from sklearn.tree import DecisionTreeRegressor
@@ -18,6 +18,9 @@ from sklearn.neighbors import KNeighborsRegressor
 from sklearn.feature_selection import SelectKBest
 from sklearn.model_selection import cross_val_score
 from sklearn.preprocessing import scale
+from sklearn.linear_model import Ridge, Lasso
+import pmdarima as pm
+from statsmodels.tsa.arima_model import ARIMA
 
 US_data = US_data[:-1]
 countries = [US_data]
@@ -48,10 +51,8 @@ for country_data in countries:
     X = X.iloc[1:,:] # omit first row due to NaN record
     y = y.iloc[1:] # omit first row to create same number of rows for models
 
-
-
     # MODEL 1 - OLS REGRESSION
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42,shuffle=False)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42,shuffle=False) # Split into training and test
 
     OLS = LinearRegression()
     OLS.fit(X_train, y_train)
@@ -67,8 +68,6 @@ for country_data in countries:
 
     rmse_OLS = sqrt(mean_squared_error(y_test, y_pred))
     oos_r2_OLS = r2_score(y_test, y_pred)
-    print(f'RMSE: {rmse_OLS}')
-    print(f'OOS R2 {oos_r2_OLS}')
 
     # Plot errors
     performance.reset_index(drop=True, inplace=True)
@@ -103,10 +102,6 @@ for country_data in countries:
     # targets_rescaled = pd.DataFrame(targets_rescaled, columns=targets.columns, index=targets.index)
 
     train_size = int(0.80 * factors.shape[0])
-    # train_factors = factors[:train_size]
-    # train_targets = targets[:train_size]
-    # test_factors = factors[train_size:]
-    # test_targets = targets[train_size:]
     train_factors = factors[:train_size]
     train_targets = targets[:train_size]
     test_factors = factors[train_size:]
@@ -119,7 +114,6 @@ for country_data in countries:
     # print('RESCALED TARGETS')
     # print(targets_rescaled)
 
-
     # reshape targets to match keras expectations
     train_targets = train_targets.values.reshape(-1, 1)
     test_targets = test_targets.values.reshape(-1, 1)
@@ -129,8 +123,17 @@ for country_data in countries:
 
     # LSTM model
     model = Sequential() # initialize the neural network
-    model.add(LSTM(50, activation='relu', input_shape=(train_factors.shape[1], 1)))
+    model.add(LSTM(100, activation='relu', input_shape=(train_factors.shape[1], 1), return_sequences=True))
+    # model.add(LSTM(50, activation='relu', input_shape=(train_factors.shape[1], 1), return_sequences=True))
+    # model.add(LSTM(50, activation='relu', input_shape=(train_factors.shape[1], 1), return_sequences=True))
+    # model.add(LSTM(50, activation='relu', input_shape=(train_factors.shape[1], 1), return_sequences=True))
+    # model.add(LSTM(50, activation='relu', input_shape=(train_factors.shape[1], 1), return_sequences=True))
+    # model.add(LSTM(50, activation='relu', input_shape=(train_factors.shape[1], 1), return_sequences=True))
+    # model.add(LSTM(50, activation='relu', input_shape=(train_factors.shape[1], 1), return_sequences=True))
+    model.add(LSTM(50, activation='relu', input_shape=(train_factors.shape[1], 1), return_sequences=False))
+    model.add(Dense(50, activation='relu', input_shape=(train_factors.shape[1], 1)))
     model.add(Dense(1))
+    model.add(Dropout(0.2))
     model.compile(optimizer = 'adam', loss = 'mean_squared_error')
 
     # Train model
@@ -141,9 +144,6 @@ for country_data in countries:
     predictions = model.predict(test_factors)
     rmse = sqrt(mean_squared_error(test_targets, predictions))
     oos_r2 = r2_score(test_targets, predictions)
-    print('LSTM Metrics')
-    print(f'RMSE: {rmse}')
-    print(f'OOS R2: {oos_r2}')
 
     # Random forest model
 
@@ -183,22 +183,12 @@ for country_data in countries:
     rf_test_score = rf_model.score(test_factors, test_targets)
     oos_r2_rf = r2_score(test_targets, y_pred_rf)
 
-    print('Optimized Random Forest Metrics')
-    print(f'RMSE: {sqrt(mean_squared_error(test_targets, y_pred_rf))}')
-    print(f'OOS R2: {oos_r2_rf}')
-
     # Decision Tree
     dt_model = DecisionTreeRegressor()
     dt_model.fit(train_factors, train_targets)
 
     y_pred_dt = dt_model.predict(test_factors)
-
     oos_r2_dt = r2_score(test_targets, y_pred_dt)
-
-    # Evaluate model performance
-    print('Decision Tree Metrics')
-    print(f'RMSE: {sqrt(mean_squared_error(test_targets, y_pred_dt))}')
-    print(f'OOS R2: {oos_r2_dt}')
 
     # KNN Model
     knn_train_scores = []
@@ -216,7 +206,6 @@ for country_data in countries:
         cv_scores.append(-scores.mean())
 
         knn_model.fit(train_factors, train_targets)
-
         y_pred_knn = knn_model.predict(test_factors)
 
     optimal_n = np.argmin(cv_scores) + 2
@@ -228,10 +217,103 @@ for country_data in countries:
     y_pred_knn_opt = knn_model_opt.predict(test_factors)
     oos_r2_knn_opt = r2_score(test_targets, y_pred_knn_opt)
 
-    # Evaluate model performance
+    # Model - LASSO regression
+    X_train_const = sm.add_constant(X_train)
+    X_test_const = sm.add_constant(X_test)
+
+    lasso_model = Lasso(alpha=2)
+    lasso_model.fit(X_train_const, y_train)
+    y_pred_lasso = lasso_model.predict(X_test_const)
+
+    rmse_lasso = sqrt(mean_squared_error(y_test, y_pred_lasso))
+    oos_r2_lasso = r2_score(y_test, y_pred_lasso)
+
+    # Model - Ridge regression
+    ridge_model = Ridge(alpha=5)
+    ridge_model.fit(X_train_const, y_train)
+    y_pred_ridge = ridge_model.predict(X_test_const)
+
+    rmse_ridge = sqrt(mean_squared_error(y_test, y_pred_ridge))
+    oos_r2_ridge = r2_score(y_test, y_pred_ridge)
+
+    # Report key model statistics:
+    print('OLS Regression Metrics')
+    print(f'RMSE: {rmse_OLS}')
+    print(f'OOS R2 {oos_r2_OLS}')
+    print('')
+
+    print('Optimized Random Forest Metrics')
+    print(f'RMSE: {sqrt(mean_squared_error(test_targets, y_pred_rf))}')
+    print(f'OOS R2: {oos_r2_rf}')
+    print('')
+
+    print('Decision Tree Metrics')
+    print(f'RMSE: {sqrt(mean_squared_error(test_targets, y_pred_dt))}')
+    print(f'OOS R2: {oos_r2_dt}')
+    print('')
+
     print('Optimized KNN Metrics')
     print(f'RMSE: {sqrt(mean_squared_error(test_targets, y_pred_knn_opt))}')
     print(f'OOS R2: {oos_r2_knn_opt}')
+    print('')
+
+    print('Lasso Regression Metrics')
+    print(f'RMSE: {rmse_lasso}')
+    print(f'OOS R2: {oos_r2_lasso}')
+    print('')
+
+    print('Ridge Regression Metrics')
+    print(f'RMSE: {rmse_ridge}')
+    print(f'OOS R2: {oos_r2_ridge}')
+    print('')
+
+    print('LSTM Metrics')
+    print(f'RMSE: {rmse}')
+    print(f'OOS R2: {oos_r2}')
+
+    # Model - ARIMA
+    # X_train_reshaped = X_train.ravel()
+    # arima_model = pm.auto_arima(X_train_reshaped,
+    #                             seasonal=False,
+    #                             stepwise=True,
+    #                             suppress_warnings=True,
+    #                             error_action='ignore',
+    #                             max_order=None,
+    #                             trace=True)
+    #
+    # y_pred_arima = arima_model.predict(n_periods=len(y_test))
+
+    # arima_model = ARIMA()
+
+    # rmse_arima = sqrt(mean_squared_error(y_test, y_pred_arima))
+    # oos_r2_arima = r2_score(y_test, y_pred_arima)
+    #
+    # print('ARIMA Model Metrics')
+    # print(f'RMSE: {rmse_arima}')
+    # print(f'OOS R2: {oos_r2_arima}')
+
+    # # Model - Scaled LASSO regression - same results as non-scaled version
+    # scaled_lasso_model = Lasso(alpha=2)
+    # scaled_lasso_model.fit(train_factors, train_targets)
+    # y_pred_lasso_scaled = scaled_lasso_model.predict(test_factors)
+    #
+    # rmse_lasso_scaled = sqrt(mean_squared_error(test_targets, y_pred_lasso_scaled))
+    # oos_r2_lasso_scaled = r2_score(test_targets, y_pred_lasso_scaled)
+    #
+    # print('Scaled Lasso Regression Metrics')
+    # print(f'RMSE: {rmse_lasso_scaled}')
+    # print(f'OOS R2: {oos_r2_lasso_scaled}')
+    # print('')
+    #
+
+
+
+    # Model - Scaled LASSO regression
+    # lasso_model_scaled = Lasso(alpha=0.01)
+    # lasso_model_scaled.fit()
+
+
+
 
 
 
