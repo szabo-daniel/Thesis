@@ -22,9 +22,15 @@ from sklearn.linear_model import Ridge, Lasso
 import pmdarima as pm
 from statsmodels.tsa.arima_model import ARIMA
 
+n_iterations = 10
+
 US_data = US_data[:-1]
+US_data = US_data[1:-1]
 countries = [US_data]
 print(US_data)
+
+def new_r2_score(hist_errors, model_errors):
+    1 - np.mean(hist_errors^2) / np.mean(model_errors^2)
 
 for country_data in countries:
     # n_factors = len(US_factor_list)
@@ -122,31 +128,49 @@ for country_data in countries:
     test_factors = np.reshape(test_factors, (test_factors.shape[0], test_factors.shape[1], 1))
 
     # LSTM model
-    model = Sequential() # initialize the neural network
-    model.add(LSTM(100, activation='relu', input_shape=(train_factors.shape[1], 1), return_sequences=True))
-    # model.add(LSTM(50, activation='relu', input_shape=(train_factors.shape[1], 1), return_sequences=True))
-    # model.add(LSTM(50, activation='relu', input_shape=(train_factors.shape[1], 1), return_sequences=True))
-    # model.add(LSTM(50, activation='relu', input_shape=(train_factors.shape[1], 1), return_sequences=True))
-    # model.add(LSTM(50, activation='relu', input_shape=(train_factors.shape[1], 1), return_sequences=True))
-    # model.add(LSTM(50, activation='relu', input_shape=(train_factors.shape[1], 1), return_sequences=True))
-    # model.add(LSTM(50, activation='relu', input_shape=(train_factors.shape[1], 1), return_sequences=True))
-    model.add(LSTM(50, activation='relu', input_shape=(train_factors.shape[1], 1), return_sequences=False))
-    model.add(Dense(50, activation='relu', input_shape=(train_factors.shape[1], 1)))
-    model.add(Dense(1))
-    model.add(Dropout(0.2))
-    model.compile(optimizer = 'adam', loss = 'mean_squared_error')
+    sum_rmse = 0
+    sum_oos_r2 = 0
+    sum_mape = 0
 
-    # Train model
-    model.fit(train_factors, train_targets, epochs = 100, verbose = 0)
-    # model.fit(train_factors, train_targets, epochs=100)
+    for i in range(n_iterations):
+        print(f'LSTM model run {i}')
+        model = Sequential() # initialize the neural network
+        model.add(LSTM(100, activation='relu', input_shape=(train_factors.shape[1], 1), return_sequences=True))
+        model.add(Dropout(0.2))
+        model.add(LSTM(50, activation='relu', input_shape=(train_factors.shape[1], 1), return_sequences=True))
+        model.add(Dropout(0.2))
+        model.add(LSTM(50, activation='relu', input_shape=(train_factors.shape[1], 1), return_sequences=True))
+        model.add(Dropout(0.2))
+        model.add(LSTM(50, activation='relu', input_shape=(train_factors.shape[1], 1), return_sequences=True))
+        model.add(Dropout(0.2))
+        model.add(LSTM(50, activation='relu', input_shape=(train_factors.shape[1], 1), return_sequences=True))
+        model.add(Dropout(0.2))
+        # model.add(LSTM(50, activation='relu', input_shape=(train_factors.shape[1], 1), return_sequences=True))
+        # model.add(Dropout(0.2))
+        # model.add(LSTM(50, activation='relu', input_shape=(train_factors.shape[1], 1), return_sequences=True))
+        # model.add(Dropout(0.2))
+        model.add(LSTM(50, activation='relu', input_shape=(train_factors.shape[1], 1), return_sequences=False))
+        model.add(Dense(50, activation='relu', input_shape=(train_factors.shape[1], 1)))
+        model.add(Dense(1))
+        model.add(Dropout(0.2))
+        model.compile(optimizer = 'adam', loss = 'mean_squared_error')
 
-    # Prediction & evaluation
-    predictions = model.predict(test_factors)
-    rmse = sqrt(mean_squared_error(test_targets, predictions))
-    oos_r2 = r2_score(test_targets, predictions)
+        # Train model
+        model.fit(train_factors, train_targets, epochs = 100, verbose = 0)
+        # model.fit(train_factors, train_targets, epochs=100)
+
+        # Prediction & evaluation
+        predictions = model.predict(test_factors)
+        rmse = sqrt(mean_squared_error(test_targets, predictions))
+        oos_r2 = r2_score(test_targets, predictions)
+
+        sum_rmse += rmse
+        sum_oos_r2 += oos_r2
+
+    avg_rmse = sum_rmse / n_iterations
+    avg_oos_r2 = sum_oos_r2 / n_iterations
 
     # Random forest model
-
     # print('FEATURE COUNT', len(country_data.columns))
     total_feature_count = int(len(country_data.columns))
     test_scores_rf = []
@@ -158,7 +182,7 @@ for country_data in countries:
 
     grid_rf = {'n_estimators': [50, 100, 150, 200],
                'max_depth': [3, 4, 5, 6, 7],
-               'max_features': [total_feature_count-5, total_feature_count-4, total_feature_count-3, total_feature_count-2, total_feature_count-1],
+               'max_features': [total_feature_count-4, total_feature_count-3, total_feature_count-2, total_feature_count-1, total_feature_count-0, total_feature_count],
                'random_state': [42]}
 
     rf_model = RandomForestRegressor()
@@ -173,7 +197,7 @@ for country_data in countries:
     print(test_scores_rf[best_index], ParameterGrid(grid_rf)[best_index])
 
     # Create random forest model with best parameters from grid:
-    rf_model = RandomForestRegressor(n_estimators=200, max_depth=3, max_features=15, random_state=42)
+    rf_model = RandomForestRegressor(n_estimators=50, max_depth=5, max_features=4, random_state=42)
     rf_model.fit(train_factors, train_targets)
 
     y_pred_rf = rf_model.predict(test_factors)
@@ -268,8 +292,8 @@ for country_data in countries:
     print('')
 
     print('LSTM Metrics')
-    print(f'RMSE: {rmse}')
-    print(f'OOS R2: {oos_r2}')
+    print(f'RMSE: {avg_rmse}')
+    print(f'OOS R2: {avg_oos_r2}')
 
     # Model - ARIMA
     # X_train_reshaped = X_train.ravel()

@@ -49,12 +49,17 @@ pd.set_option('display.max_columns', None)
 # Dates (Q1 1993 - Q3 2023)
 start_date = '1993-01-01'
 end_date = '2023-10-01'
+end_date = '2021-10-01' #Note: set this as the end date if using GW factor data
 
 # Indices (note: first 3 are from market-based economies, last 3 are from bank-based economies)
 # May replace with MSCI data if I can get it
 index_list = ['^GSPC', '^FTSE', '^AXJO', '^N225', '^GDAXI', '^FCHI']
 index_names = ['SP500', 'FTSE100', 'ASX200', 'N225', 'DAX', 'CAC40']
 log_qtr_returns = pd.DataFrame()
+
+# Import quarterly factor data from Goyal and Welch (2008) paper
+GW_df = pd.read_excel('Country Data.xlsx', sheet_name='GW Data', index_col='Date', parse_dates=True)
+print(GW_df)
 
 # Risk-free rates (will eventually include in factor-specific file for each country)
 # NOTE: ONLY HAS USA DATA FOR NOW, WILL GET OTHER DATA IN ON BLOOMBERG (note to self - change to end of period)
@@ -91,6 +96,7 @@ for ticker in index_list:
     ticker_count += 1
 
 excess_returns = log_qtr_returns.copy()
+# excess_returns['SP500'] = excess_returns['SP500'] + np.log(GW_df['D12']).values[1:]
 
 # Calculate excess index returns
 for ticker in index_names:
@@ -98,7 +104,9 @@ for ticker in index_names:
     if rf_column in log_risk_free_rates.columns:
         excess_returns[ticker] = excess_returns[ticker] - log_risk_free_rates[rf_column]
 
+
 # Test prints
+print('INITAL PRINTS')
 print(excess_returns)
 print(log_qtr_returns)
 print(risk_free_rates)
@@ -116,19 +124,54 @@ print(risk_free_rates)
 # United States
 # Line up quarterly dates for appending
 US_factors = pd.read_excel('Country Data.xlsx', sheet_name='US Data', index_col='Date', parse_dates=True)
-US_factors.index = US_factors.index - pd.Timedelta(days=1)
+# US_factors.index = US_factors.index - pd.Timedelta(days=1)
 
 # Create list of all columns to iterate through
 US_factor_list = US_factors.columns.tolist()
+print('factor list')
+print(US_factor_list)
 
-US_data = pd.DataFrame()
+US_data = pd.DataFrame(index=GW_df.index)
 # US_data['ER'] = excess_returns['SP500']*100
-US_data['ER'] = excess_returns['SP500']
-print(US_data)
+# print('TESTING')
+# print('ER length')
+# print(len(excess_returns['SP500']))
+# print('D12 length')
+# print(len(GW_df['D12']))
+# US_data['ER'] = excess_returns['SP500'] # Price return
+# GW_df.set_index("Date", inplace=True)
+US_data['ER'] = GW_df['EqPrem']
+# print(US_data['ER'])
+# US_data['ER'] = (np.log(GW_df['Index'] + GW_df['D12']) - np.log(GW_df['Rfree'])).values[1:]
+print('ER TEST PRINTS')
+print(US_data['ER'])
+print('GW ER TEST')
+print(GW_df['EqPrem'])
 
 # Read in all factors from list of given factors into one dataframe
 for factor in US_factor_list:
     US_data[factor] = US_factors[factor]
+
+# Read in GW factors (comment out if not used)
+# US_data['div_price'] = (np.log(GW_df['D12']) - np.log(GW_df['Index'])).values[1:] # makes sure that indexes aren't an issue, an pastes only values over. Start at 1 to omit header as a value
+# US_data['div_yield'] = (np.log(GW_df['D12']) - np.log(GW_df['Index'].shift(1))).values[1:] #check logic on this, should work
+# US_data['earnings_price'] = (np.log(GW_df['E12']) - np.log(GW_df['Index'])).values[1:]
+# US_data['dividend_payout'] = (np.log(GW_df['D12']) - np.log(GW_df['E12'])).values[1:]
+# US_data['term_spread'] = (GW_df['lty'] - GW_df['tbl']).values[1:]
+# US_data['default_yield_spread'] = (GW_df['BAA'] - GW_df['AAA']).values[1:]
+# US_data['default_return_spread'] = (GW_df['corpr'] - GW_df['ltr']).values[1:]
+US_data['div_price'] = (np.log(GW_df['D12']) - np.log(GW_df['Index'])).values # makes sure that indexes aren't an issue, an pastes only values over. Start at 1 to omit header as a value
+US_data['div_yield'] = (np.log(GW_df['D12']) - np.log(GW_df['Index'].shift(1))).values #check logic on this, should work
+US_data['earnings_price'] = (np.log(GW_df['E12']) - np.log(GW_df['Index'])).values
+US_data['dividend_payout'] = (np.log(GW_df['D12']) - np.log(GW_df['E12'])).values
+US_data['term_spread'] = (GW_df['lty'] - GW_df['tbl']).values
+US_data['default_yield_spread'] = (GW_df['BAA'] - GW_df['AAA']).values
+US_data['default_return_spread'] = (GW_df['corpr'] - GW_df['ltr']).values
+#
+print('US DATA PRINT')
+print(US_data)
+
+
 
 # # United Kingdom
 # UK_factors = pd.read_excel('Country Data.xlsx', sheet_name='UK Data',index_col='Date',parse_dates=True)
