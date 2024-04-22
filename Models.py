@@ -21,16 +21,20 @@ from sklearn.preprocessing import scale
 from sklearn.linear_model import Ridge, Lasso
 import pmdarima as pm
 from statsmodels.tsa.arima_model import ARIMA
+from sklearn.preprocessing import MinMaxScaler
 
 n_iterations = 10
+
+scaler = MinMaxScaler(feature_range=(0,1))
 
 US_data = US_data[:-1]
 US_data = US_data[1:-1]
 countries = [US_data]
 print(US_data)
 
-def new_r2_score(hist_errors, model_errors):
-    1 - np.mean(hist_errors^2) / np.mean(model_errors^2)
+def GW_r2_score(hist_errors, model_errors):
+    r2 = 1 - np.mean(model_errors**2) / np.mean(hist_errors**2)
+    return r2
 
 for country_data in countries:
     # n_factors = len(US_factor_list)
@@ -62,26 +66,35 @@ for country_data in countries:
 
     OLS = LinearRegression()
     OLS.fit(X_train, y_train)
-    print(f'Coefficients: {OLS.coef_}')
-    print(f'R2: {OLS.score(X_train, y_train)}')
-
-    print(X_test.tail())
-    # Predict with OLS
     y_pred = OLS.predict(X_test)
-    performance = pd.DataFrame({'Predictions': y_pred, 'Actual values': y_test})
-    performance['Error'] = performance['Actual values'] - performance['Predictions']
-    print(performance.head())
+    # ols_errors = scale(y_test) - scale(y_pred)
+    # y_test = y_test.values.reshape(-1,1)
+    # y_pred = y_pred.values.reshape(-1,1)
+    ols_errors = scaler.fit_transform(pd.DataFrame(y_test)) - scaler.fit_transform(pd.DataFrame(y_pred))
+    print(f'OLS ERRORS: {ols_errors}')
 
     rmse_OLS = sqrt(mean_squared_error(y_test, y_pred))
     oos_r2_OLS = r2_score(y_test, y_pred)
 
-    # Plot errors
-    performance.reset_index(drop=True, inplace=True)
-    performance.reset_index(inplace=True)
+    # print(f'Coefficients: {OLS.coef_}')
+    # print(f'R2: {OLS.score(X_train, y_train)}')
 
-    fig = plt.figure(figsize=(10,5))
-    plt.bar('index', 'Error', data=performance, color='black', width=0.3)
-    plt.show()
+    # print(X_test.tail())
+    # Predict with OLS
+
+    # performance = pd.DataFrame({'Predictions': y_pred, 'Actual values': y_test})
+    # performance['Error'] = performance['Actual values'] - performance['Predictions']
+    # print(performance.head())
+
+    # Calculate errors
+
+    # Plot errors
+    # performance.reset_index(drop=True, inplace=True)
+    # performance.reset_index(inplace=True)
+    #
+    # fig = plt.figure(figsize=(10,5))
+    # plt.bar('index', 'Error', data=performance, color='black', width=0.3)
+    # plt.show()
 
     # Statsmodels OLS model - clearer output
     X_train = sm.add_constant(X_train) # adds constant equal to 1 for training dataset
@@ -113,12 +126,29 @@ for country_data in countries:
     test_factors = factors[train_size:]
     test_targets = targets[train_size:]
 
-    train_factors = scale(train_factors)
-    test_factors = scale(test_factors)
-    # print('RESCALED FACTORS')
-    # print(factors_rescaled)
-    # print('RESCALED TARGETS')
-    # print(targets_rescaled)
+    # Benchmark model - prevailing mean model
+    total_length = len(targets)
+    pm_pred_all = np.zeros(total_length)
+
+    for i in range(1, total_length):
+        pm_pred_all[i] = np.mean(targets[:i-1])
+
+    pm_pred_test = pm_pred_all[-len(test_targets):]
+    pm_errors = y_test - pm_pred_test
+
+    # OLS model GW R2
+    oos_gwr2_ols = GW_r2_score(pm_errors, ols_errors)
+
+    train_factors = scaler.fit_transform(train_factors)
+    test_factors = scaler.fit_transform(test_factors)
+
+    # Rescale pm_errors for machine learning models
+    pm_pred_all = np.zeros(total_length)
+    for i in range(1, total_length):
+        pm_pred_all[i] = np.mean(targets[:i-1])
+
+    pm_pred_test = pm_pred_all[-len(test_targets)]
+    pm_errors = scaler.fit_transform(test_targets) - scaler.fit_transform(pm_pred_test) # CHECK THIS JUST IN CASE
 
     # reshape targets to match keras expectations
     train_targets = train_targets.values.reshape(-1, 1)
@@ -127,9 +157,12 @@ for country_data in countries:
     train_factors = np.reshape(train_factors, (train_factors.shape[0], train_factors.shape[1], 1))
     test_factors = np.reshape(test_factors, (test_factors.shape[0], test_factors.shape[1], 1))
 
+
+
     # LSTM model
     sum_rmse = 0
     sum_oos_r2 = 0
+    sum_oos_gw_r2 = 0
     sum_mape = 0
 
     for i in range(n_iterations):
@@ -161,14 +194,18 @@ for country_data in countries:
 
         # Prediction & evaluation
         predictions = model.predict(test_factors)
+        lstm_errors = scaler.fit_transform(test_targets) - scaler.fit_transform(predictions)
         rmse = sqrt(mean_squared_error(test_targets, predictions))
         oos_r2 = r2_score(test_targets, predictions)
+        oos_gwr2 = GW_r2_score(pm_errors, lstm_errors)
 
         sum_rmse += rmse
         sum_oos_r2 += oos_r2
+        sum_oos_gw_r2 += oos_gwr2
 
     avg_rmse = sum_rmse / n_iterations
     avg_oos_r2 = sum_oos_r2 / n_iterations
+    avg_oos_gwr2 = sum_oos_gw_r2 / n_iterations
 
     # Random forest model
     # print('FEATURE COUNT', len(country_data.columns))
@@ -264,6 +301,7 @@ for country_data in countries:
     print('OLS Regression Metrics')
     print(f'RMSE: {rmse_OLS}')
     print(f'OOS R2 {oos_r2_OLS}')
+    print(f'OOS GW R2: {oos_gwr2_ols}')
     print('')
 
     print('Optimized Random Forest Metrics')
@@ -294,6 +332,7 @@ for country_data in countries:
     print('LSTM Metrics')
     print(f'RMSE: {avg_rmse}')
     print(f'OOS R2: {avg_oos_r2}')
+    print(f'OOS GW R2: {avg_oos_gwr2}')
 
     # Model - ARIMA
     # X_train_reshaped = X_train.ravel()

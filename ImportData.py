@@ -10,7 +10,7 @@ import tensorflow as tf
 from sklearn.feature_selection import SelectKBest
 from sklearn.feature_selection import f_regression
 
-from sklearn.preprocessing import MinMaxScaler #scales data to 0-1 range for neural network training
+ #scales data to 0-1 range for neural network training
 
 from keras import Sequential
 from keras.layers import LSTM
@@ -106,7 +106,7 @@ for ticker in index_names:
 
 
 # Test prints
-print('INITAL PRINTS')
+print('INITIAL PRINTS')
 print(excess_returns)
 print(log_qtr_returns)
 print(risk_free_rates)
