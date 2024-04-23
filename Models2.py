@@ -220,126 +220,28 @@ for country_data in countries:
     print("Reshaped Train factors shape:", train_factors_rescaled.shape)
     print("Reshaped Test factors shape:", test_factors_rescaled.shape)
 
-    #DELETE IF DOESN'T WORK
-    time_steps = 1  # This is typical if each sample is treated as a single time step sequence.
+    time_steps = 1  # assuming each sample is treated as a single time step sequence.
 
     train_factors_rescaled = train_factors_rescaled.reshape((-1, time_steps, train_factors_rescaled.shape[1]))
     test_factors_rescaled = test_factors_rescaled.reshape((-1, time_steps, test_factors_rescaled.shape[1]))
 
-    # def build_model(hp):
-    #     model = Sequential()
-    #     model.add(Bidirectional(
-    #         LSTM(
-    #             hp.Choice('units', [32, 64, 128]),
-    #             input_shape=(1, train_factors_rescaled.shape[2]),
-    #             activation='tanh',
-    #             return_sequences=True,
-    #             kernel_regularizer=l2(0.01)
-    #         )
-    #     ))
-    #     model.add(Dropout(hp.Float('dropout', min_value=0.1, max_value=0.5, step=0.1)))
-    #     model.add(LSTM(
-    #         hp.Choice('units', [32, 64, 128]),
-    #         return_sequences=False,
-    #         activation='tanh',
-    #         kernel_regularizer=l2(0.01)
-    #     ))
-    #     model.add(Dense(1, activation='relu'))
-    #     model.compile(
-    #         optimizer=Adam(hp.Float('learning_rate', min_value=1e-4, max_value=1e-2, sampling='LOG')),
-    #         loss='mse'
-    #     )
-    #     return model
-    #
-    # tuner = keras_tuner.RandomSearch(
-    #     build_model,
-    #     objective='val_loss',
-    #     max_trials=50,
-    #     directory='C:/Users/dansz/PycharmProjects/Thesis/lstm_tuner',
-    #     project_name='lstm_optim',
-    #     overwrite=True
-    # )
-    # tuner.search(train_factors_rescaled,
-    #              train_targets_rescaled,
-    #              epochs=50,
-    #              validation_data=(test_factors_rescaled, test_targets_rescaled))
-    # best_model = tuner.get_best_models(num_models=1)[0]
-    # lstm_pred = best_model.predict(test_factors_rescaled)
-    # def build_model(hp):
-    #     model = Sequential()
-    #     # Start with a Bidirectional LSTM layer
-    #     model.add(Bidirectional(
-    #         LSTM(
-    #             units=hp.Int('units_lstm1', min_value=32, max_value=128, step=32),
-    #             input_shape=(1, train_factors_rescaled.shape[2]),
-    #             activation='tanh',
-    #             return_sequences=True,  # Always true when followed by another LSTM layer
-    #             kernel_regularizer=l2(hp.Float('l2_lstm1', min_value=0.01, max_value=0.1, step=0.01))
-    #         )
-    #     ))
-    #
-    #     # Adding more LSTM layers
-    #     for i in range(hp.Int('num_lstm_layers', 1, 8)):  # Tuning the number of additional LSTM layers from 1 to 3
-    #         model.add(LSTM(
-    #             units=hp.Int('units_lstm' + str(i + 2), min_value=32, max_value=128, step=32),
-    #             activation='tanh',
-    #             return_sequences=(i < hp.Int('num_lstm_layers', 1, 3) - 1),
-    #             kernel_regularizer=l2(hp.Float('l2_lstm' + str(i + 2), min_value=0.01, max_value=0.1, step=0.01))
-    #         ))
-    #
-    #     model.add(Dropout(hp.Float('dropout', min_value=0.1, max_value=0.5, step=0.1)))
-    #     model.add(Dense(1, activation='relu'))
-    #     model.compile(
-    #         optimizer='adam',
-    #         loss='mse'
-    #     )
-    #     return model
-    #
-    #
-    # tuner = keras_tuner.RandomSearch(
-    #     build_model,
-    #     objective='val_loss',
-    #     max_trials=40,
-    #     executions_per_trial=3,  # Increasing this for more robust results
-    #     directory='C:/Users/dansz/PycharmProjects/Thesis/lstm_tuner',
-    #     project_name='lstm_optim_advanced',
-    #     overwrite=True
-    # )
-    #
-    # def run_tuner_with_batch_size():
-    #     # Running the tuner with different batch sizes
-    #     best_score = float('inf')
-    #     best_model = None
-    #     for batch_size in [10, 20, 30, 40]:  # You can customize these values
-    #         tuner.search(train_factors_rescaled, train_targets_rescaled,
-    #                      epochs=50,
-    #                      batch_size=batch_size,
-    #                      validation_data=(test_factors_rescaled, test_targets_rescaled))
-    #         best_trial = tuner.oracle.get_best_trials(num_trials=1)[0]
-    #         if best_trial.score < best_score:
-    #             best_score = best_trial.score
-    #             best_model = tuner.get_best_models(num_models=1)[0]
-    #             best_batch_size = batch_size
-    #
-    #     return best_model, best_batch_size
-    #
-    # best_model, best_batch_size = run_tuner_with_batch_size()
-    # lstm_pred = best_model.predict(test_factors_rescaled)
+
     def build_model(hp):
         model = Sequential()
-        # Start with a Bidirectional LSTM layer
+        # Start with a Bidirectional LSTM layer to process data forward and backward; capture patterns from both directions in time series data
         model.add(Bidirectional(
             LSTM(
+                # Dynamically set number of neurons based on tuner result
                 units=hp.Int('units_lstm1', min_value=32, max_value=128, step=32),
                 input_shape=(1, train_factors_rescaled.shape[2]),
-                activation='tanh',
-                return_sequences=hp.Int('num_lstm_layers',1, 8) > 1,  # Always true when followed by another LSTM layer
-                kernel_regularizer=l2(hp.Float('l2_lstm1', min_value=0.01, max_value=0.1, step=0.01))
+                activation='tanh', # tanh activation function for to capture nonlinear relationships
+                return_sequences=hp.Int('num_lstm_layers', 1, 8) > 1,
+                kernel_regularizer=l2(hp.Float('l2_lstm1', min_value=0.01, max_value=0.1, step=0.01)) # penalty on layer weights to prevent overfitting
             )
         ))
 
-        # Adding more LSTM layers
-        for i in range(hp.Int('num_lstm_layers', 1, 8)):  # Tuning the number of additional LSTM layers from 1 to 3
+        # Adding more LSTM layers based on tuner
+        for i in range(hp.Int('num_lstm_layers', 1, 8)):  # Tuning the number of additional LSTM layers from 1 to 8
             model.add(LSTM(
                 units=hp.Int('units_lstm' + str(i + 1), min_value=32, max_value=128, step=32),
                 activation='tanh',
@@ -596,3 +498,103 @@ for country_data in countries:
     # )
     # tuner.search(train_factors_rescaled, train_targets_rescaled, epochs=5, validation_data=(test_factors_rescaled, test_targets_rescaled))
     # best_model = tuner.get_best_models()[0]
+
+    # def build_model(hp):
+    #     model = Sequential()
+    #     model.add(Bidirectional(
+    #         LSTM(
+    #             hp.Choice('units', [32, 64, 128]),
+    #             input_shape=(1, train_factors_rescaled.shape[2]),
+    #             activation='tanh',
+    #             return_sequences=True,
+    #             kernel_regularizer=l2(0.01)
+    #         )
+    #     ))
+    #     model.add(Dropout(hp.Float('dropout', min_value=0.1, max_value=0.5, step=0.1)))
+    #     model.add(LSTM(
+    #         hp.Choice('units', [32, 64, 128]),
+    #         return_sequences=False,
+    #         activation='tanh',
+    #         kernel_regularizer=l2(0.01)
+    #     ))
+    #     model.add(Dense(1, activation='relu'))
+    #     model.compile(
+    #         optimizer=Adam(hp.Float('learning_rate', min_value=1e-4, max_value=1e-2, sampling='LOG')),
+    #         loss='mse'
+    #     )
+    #     return model
+    #
+    # tuner = keras_tuner.RandomSearch(
+    #     build_model,
+    #     objective='val_loss',
+    #     max_trials=50,
+    #     directory='C:/Users/dansz/PycharmProjects/Thesis/lstm_tuner',
+    #     project_name='lstm_optim',
+    #     overwrite=True
+    # )
+    # tuner.search(train_factors_rescaled,
+    #              train_targets_rescaled,
+    #              epochs=50,
+    #              validation_data=(test_factors_rescaled, test_targets_rescaled))
+    # best_model = tuner.get_best_models(num_models=1)[0]
+    # lstm_pred = best_model.predict(test_factors_rescaled)
+    # def build_model(hp):
+    #     model = Sequential()
+    #     # Start with a Bidirectional LSTM layer
+    #     model.add(Bidirectional(
+    #         LSTM(
+    #             units=hp.Int('units_lstm1', min_value=32, max_value=128, step=32),
+    #             input_shape=(1, train_factors_rescaled.shape[2]),
+    #             activation='tanh',
+    #             return_sequences=True,  # Always true when followed by another LSTM layer
+    #             kernel_regularizer=l2(hp.Float('l2_lstm1', min_value=0.01, max_value=0.1, step=0.01))
+    #         )
+    #     ))
+    #
+    #     # Adding more LSTM layers
+    #     for i in range(hp.Int('num_lstm_layers', 1, 8)):  # Tuning the number of additional LSTM layers from 1 to 3
+    #         model.add(LSTM(
+    #             units=hp.Int('units_lstm' + str(i + 2), min_value=32, max_value=128, step=32),
+    #             activation='tanh',
+    #             return_sequences=(i < hp.Int('num_lstm_layers', 1, 3) - 1),
+    #             kernel_regularizer=l2(hp.Float('l2_lstm' + str(i + 2), min_value=0.01, max_value=0.1, step=0.01))
+    #         ))
+    #
+    #     model.add(Dropout(hp.Float('dropout', min_value=0.1, max_value=0.5, step=0.1)))
+    #     model.add(Dense(1, activation='relu'))
+    #     model.compile(
+    #         optimizer='adam',
+    #         loss='mse'
+    #     )
+    #     return model
+    #
+    #
+    # tuner = keras_tuner.RandomSearch(
+    #     build_model,
+    #     objective='val_loss',
+    #     max_trials=40,
+    #     executions_per_trial=3,  # Increasing this for more robust results
+    #     directory='C:/Users/dansz/PycharmProjects/Thesis/lstm_tuner',
+    #     project_name='lstm_optim_advanced',
+    #     overwrite=True
+    # )
+    #
+    # def run_tuner_with_batch_size():
+    #     # Running the tuner with different batch sizes
+    #     best_score = float('inf')
+    #     best_model = None
+    #     for batch_size in [10, 20, 30, 40]:  # You can customize these values
+    #         tuner.search(train_factors_rescaled, train_targets_rescaled,
+    #                      epochs=50,
+    #                      batch_size=batch_size,
+    #                      validation_data=(test_factors_rescaled, test_targets_rescaled))
+    #         best_trial = tuner.oracle.get_best_trials(num_trials=1)[0]
+    #         if best_trial.score < best_score:
+    #             best_score = best_trial.score
+    #             best_model = tuner.get_best_models(num_models=1)[0]
+    #             best_batch_size = batch_size
+    #
+    #     return best_model, best_batch_size
+    #
+    # best_model, best_batch_size = run_tuner_with_batch_size()
+    # lstm_pred = best_model.predict(test_factors_rescaled)
