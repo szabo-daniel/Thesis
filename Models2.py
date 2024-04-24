@@ -168,25 +168,25 @@ for country_data in countries:
     # Random forest (hyperparameter-optimized)
     ################################################################
     print('Generating random forest model...')
-    # factor_count = int(len(factors.columns)) # Should be 22 in total
-    # test_scores_rf = []
-    #
-    # grid_rf = {'n_estimators': [50, 100, 150, 200, 250],
-    #            'max_depth': [None, 3, 5, 7, 10, 15, 20, 25, 30],
-    #            'max_features': [22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 1],
-    #            'random_state': [42]}
-    # rf_model = RandomForestRegressor()
-    #
-    # for g in ParameterGrid(grid_rf):
-    #     rf_model.set_params(**g)
-    #     rf_model.fit(train_factors_rescaled, train_targets_rescaled)
-    #     test_scores_rf.append(rf_model.score(test_factors_rescaled, test_targets_rescaled))
-    #     print(f'Iterating through parameter grid: {g}')
-    #
-    # best_index = np.argmax(test_scores_rf)
-    # print('Optimal Random Forest parameters:')
-    # print(test_scores_rf[best_index], ParameterGrid(grid_rf)[best_index])
-    # print('')
+    factor_count = int(len(factors.columns)) # Should be 22 in total
+    test_scores_rf = []
+
+    grid_rf = {'n_estimators': [50, 100, 150, 200, 250],
+               'max_depth': [None, 3, 5, 7, 10, 15, 20, 25, 30],
+               'max_features': [22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 1],
+               'random_state': [42]}
+    rf_model = RandomForestRegressor()
+
+    for g in ParameterGrid(grid_rf):
+        rf_model.set_params(**g)
+        rf_model.fit(train_factors_rescaled, train_targets_rescaled)
+        test_scores_rf.append(rf_model.score(test_factors_rescaled, test_targets_rescaled))
+        print(f'Iterating through parameter grid: {g}')
+
+    best_index = np.argmax(test_scores_rf)
+    print('Optimal Random Forest parameters:')
+    print(test_scores_rf[best_index], ParameterGrid(grid_rf)[best_index])
+    print('')
 
     rf_model = RandomForestRegressor(n_estimators=100, max_depth=5, max_features=16, random_state=42)
     rf_model.fit(train_factors_rescaled, train_targets_rescaled)
