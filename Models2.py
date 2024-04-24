@@ -13,7 +13,6 @@ from keras.layers import Dense, LSTM, Dropout, Bidirectional
 from keras.regularizers import l2
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from keras.optimizers import Adam
-from keras.callbacks import EarlyStopping
 from keras_tuner import RandomSearch, HyperParameters
 
 n_iterations = 5

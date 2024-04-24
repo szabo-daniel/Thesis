@@ -48,8 +48,8 @@ pd.set_option('display.max_columns', None)
 
 # Dates (Q1 1993 - Q3 2023)
 start_date = '1993-01-01'
-end_date = '2023-10-01'
-end_date = '2021-10-01' #Note: set this as the end date if using GW factor data
+end_date = '2023-07-01'
+# end_date = '2021-10-01' #Note: set this as the end date if using GW factor data
 
 # Indices (note: first 3 are from market-based economies, last 3 are from bank-based economies)
 # May replace with MSCI data if I can get it
