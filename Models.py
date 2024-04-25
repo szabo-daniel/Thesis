@@ -39,18 +39,18 @@ def GW_r2_score(hist_errors, model_errors):
 for country_data in countries:
     # n_factors = len(US_factor_list)
 
-    #Plot correlations of factors
-    # sb.heatmap(factors.corr(), annot=True, cbar=False)
-    # plt.title('Correlation Matrix - All Factors')
-    # plt.show()
-    #
-    # sb.heatmap(factors.corr() > 0.9, annot=True, cbar=False)
-    # plt.title('Correlation Matrix - All Factors Above 0.9 Correlation')
-    # plt.show()
-    #
-    # sb.heatmap(factors.corr() < -0.9, annot=True, cbar=False)
-    # plt.title('Correlation Matrix - All Factors Below -0.9 Correlation')
-    # plt.show()
+    # Plot correlations of factors
+    sb.heatmap(factors.corr(), annot=True, cbar=False)
+    plt.title('Correlation Matrix - All Factors')
+    plt.show()
+
+    sb.heatmap(factors.corr() > 0.9, annot=True, cbar=False)
+    plt.title('Correlation Matrix - All Factors Above 0.9 Correlation')
+    plt.show()
+
+    sb.heatmap(factors.corr() < -0.9, annot=True, cbar=False)
+    plt.title('Correlation Matrix - All Factors Below -0.9 Correlation')
+    plt.show()
 
     print(country_data.describe())
     print(country_data.median())

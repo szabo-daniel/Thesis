@@ -167,6 +167,10 @@ US_data['dividend_payout'] = (np.log(GW_df['D12']) - np.log(GW_df['E12'])).value
 US_data['term_spread'] = (GW_df['lty'] - GW_df['tbl']).values
 US_data['default_yield_spread'] = (GW_df['BAA'] - GW_df['AAA']).values
 US_data['default_return_spread'] = (GW_df['corpr'] - GW_df['ltr']).values
+US_data['book_to_market'] = GW_df['b/m']
+US_data['stock_variance'] = GW_df['svar']
+US_data['investment_to_capital'] = GW_df['ik']
+
 #
 print('US DATA PRINT')
 print(US_data)

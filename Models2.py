@@ -1,24 +1,30 @@
+import keras
 import keras_tuner
 
 from ImportData import *
 
-from sklearn.preprocessing import MinMaxScaler, scale
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import MinMaxScaler, scale, StandardScaler
 from sklearn.model_selection import train_test_split, cross_val_score, ParameterGrid
 from sklearn.linear_model import LinearRegression, Lasso, Ridge
 from sklearn.metrics import root_mean_squared_error, mean_squared_error, r2_score, mean_absolute_percentage_error
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.ensemble import RandomForestRegressor
+import tensorflow as tf
 from keras.models import Sequential
 from keras.layers import Dense, LSTM, Dropout, Bidirectional
 from keras.regularizers import l2
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from keras.optimizers import Adam
-from keras_tuner import RandomSearch, HyperParameters
+from keras_tuner import RandomSearch, HyperParameters, BayesianOptimization
+
+# from bayes_opt import BayesianOptimization, UtilityFunction
 
 n_iterations = 5
 test_size = 0.2
 
 scaler = MinMaxScaler(feature_range=(0,1))
+std_scaler = StandardScaler()
 
 US_data = US_data[1:-1]
 countries = [US_data]
@@ -35,6 +41,7 @@ def dRMSE(MSE_A, MSE_N):
     return dRMSE
 
 for country_data in countries:
+
     #############################################################
     # Split data into factors and targets, lagging appropriately
     #############################################################
@@ -45,8 +52,10 @@ for country_data in countries:
     targets = targets[:-1] # Drop last row to bring time periods into line
 
     # 2. Standardized (Mean zero and unit variance - useful for Lasso and Ridge)
-    targets_standard = scale(targets)
-    factors_standard = scale(factors)
+    # targets_standard = scale(targets)
+    # factors_standard = scale(factors)
+    targets_standard = std_scaler.fit_transform(targets.values.reshape(-1, 1))
+    factors_standard = std_scaler.fit_transform(factors)
 
     # 3. Normalized (values scaled to be between 0 and 1, useful for ML models)
     targets_rescaled = scaler.fit_transform(targets.values.reshape(-1, 1))
@@ -56,6 +65,19 @@ for country_data in countries:
     train_factors, test_factors, train_targets, test_targets = train_test_split(factors, targets, test_size=test_size, shuffle=False)
     train_factors_standard, test_factors_standard, train_targets_standard, test_targets_standard = train_test_split(factors_standard, targets_standard, test_size=test_size, shuffle=False)
     train_factors_rescaled, test_factors_rescaled, train_targets_rescaled, test_targets_rescaled = train_test_split(factors_rescaled, targets_rescaled, test_size=test_size, shuffle=False)
+
+    # Plot correlations of factors
+    sb.heatmap(factors.corr(), annot=True, cbar=False)
+    plt.title('Correlation Matrix - All Factors')
+    plt.show()
+
+    sb.heatmap(factors.corr() > 0.9, annot=True, cbar=False)
+    plt.title('Correlation Matrix - All Factors Above 0.9 Correlation')
+    plt.show()
+
+    sb.heatmap(factors.corr() < -0.9, annot=True, cbar=False)
+    plt.title('Correlation Matrix - All Factors Below -0.9 Correlation')
+    plt.show()
 
     ############################################################
     # Model 0 - Historical mean model
@@ -84,6 +106,15 @@ for country_data in countries:
     OLS_OOS_R2 = r2_score(test_targets, OLS_pred)
     OLS_OOS_GW_R2 = GW_R2_score(OLS_MSE, hist_MSE)
 
+    # Plot OLS target predictions
+    pred_series_OLS = pd.Series(OLS_pred, index=test_targets.index)
+    pred_series_OLS.plot(label = 'Predicted')
+    test_targets.plot(label='Actual')
+    plt.ylabel('Predicted Excess Return')
+    plt.title('OLS Prediction')
+    plt.legend()
+    plt.show()
+
     print('Historical mean model complete')
     print('')
     ################################################################
@@ -103,6 +134,19 @@ for country_data in countries:
     ridge_OOS_R2 = r2_score(test_targets, ridge_pred)
     ridge_OOS_GW_R2 = GW_R2_score(ridge_MSE, hist_MSE)
 
+    # Plot Ridge target predictions
+    ridge_pred = ridge_pred.flatten()
+
+    pred_series_Ridge = pd.Series(ridge_pred, index=test_targets.index)
+    actual_standard_series = pd.Series(test_targets_standard.flatten(), index=test_targets.index)
+
+    pred_series_Ridge.plot(label='Predicted')
+    actual_standard_series.plot(label='Actual')
+    plt.ylabel('Predicted Excess Return')
+    plt.title('Ridge Regression Prediction')
+    plt.legend()
+    plt.show()
+
     print('Ridge regression model complete')
     print('')
     ################################################################
@@ -121,6 +165,19 @@ for country_data in countries:
     lasso_MAPE = mean_absolute_percentage_error(test_targets_standard, lasso_pred)
     lasso_OOS_R2 = r2_score(test_targets_standard, lasso_pred)
     lasso_OOS_GW_R2 = GW_R2_score(lasso_MSE, hist_MSE)
+
+    # Plot Lasso target predictions
+    lasso_pred = lasso_pred.flatten()
+
+    pred_series_Lasso = pd.Series(lasso_pred, index=test_targets.index)
+    actual_standard_series = pd.Series(test_targets_standard.flatten(), index=test_targets.index)
+
+    pred_series_Lasso.plot(label='Predicted')
+    actual_standard_series.plot(label='Actual')
+    plt.ylabel('Predicted Excess Return')
+    plt.title('Lasso Regression Prediction')
+    plt.legend()
+    plt.show()
 
     print('Lasso regression model complete')
     print('')
@@ -161,6 +218,19 @@ for country_data in countries:
     knn_OOS_R2 = r2_score(test_targets_rescaled, knn_pred)
     knn_OOS_GW_R2 = GW_R2_score(knn_MSE, hist_MSE)
 
+    # Plot KNN target predictions
+    knn_pred = knn_pred.flatten()
+
+    pred_series_KNN = pd.Series(knn_pred, index=test_targets.index)
+    actual_rescaled_series = pd.Series(test_targets_rescaled.flatten(), index=test_targets.index)
+
+    pred_series_KNN.plot(label='Predicted')
+    actual_rescaled_series.plot(label='Actual')
+    plt.ylabel('Predicted Excess Return')
+    plt.title('Optimized KNN Prediction')
+    plt.legend()
+    plt.show()
+
     print('KNN model complete')
     print('')
 
@@ -171,9 +241,11 @@ for country_data in countries:
     factor_count = int(len(factors.columns)) # Should be 22 in total
     test_scores_rf = []
 
+    max_factors_list = list(range(factor_count, 0, -1))
+
     grid_rf = {'n_estimators': [50, 100, 150, 200, 250],
                'max_depth': [None, 3, 5, 7, 10, 15, 20, 25, 30],
-               'max_features': [22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 1],
+               'max_features': max_factors_list,
                'random_state': [42]}
     rf_model = RandomForestRegressor()
 
@@ -184,11 +256,12 @@ for country_data in countries:
         print(f'Iterating through parameter grid: {g}')
 
     best_index = np.argmax(test_scores_rf)
+    best_params = ParameterGrid(grid_rf)[best_index]
     print('Optimal Random Forest parameters:')
     print(test_scores_rf[best_index], ParameterGrid(grid_rf)[best_index])
     print('')
 
-    rf_model = RandomForestRegressor(n_estimators=100, max_depth=5, max_features=16, random_state=42)
+    rf_model = RandomForestRegressor(**best_params)
     rf_model.fit(train_factors_rescaled, train_targets_rescaled)
     rf_pred = rf_model.predict(test_factors_rescaled)
 
@@ -199,6 +272,19 @@ for country_data in countries:
     rf_MAPE = mean_absolute_percentage_error(test_targets_rescaled, rf_pred)
     rf_OOS_R2 = r2_score(test_targets_rescaled, rf_pred)
     rf_OOS_GW_R2 = GW_R2_score(rf_MSE, hist_MSE)
+
+    # Plot Random Forest target predictions
+    rf_pred = rf_pred.flatten()
+
+    pred_series_rf = pd.Series(rf_pred, index=test_targets.index)
+    actual_rescaled_series = pd.Series(test_targets_rescaled.flatten(), index=test_targets.index)
+
+    pred_series_rf.plot(label='Predicted')
+    actual_rescaled_series.plot(label='Actual')
+    plt.ylabel('Predicted Excess Return')
+    plt.title('Optimized Random Forest Prediction')
+    plt.legend()
+    plt.show()
 
     print('Random forest complete')
     print('')
@@ -211,85 +297,66 @@ for country_data in countries:
     print("Train factors shape:", train_factors_rescaled.shape)
     print("Test factors shape:", test_factors_rescaled.shape)
 
-    # train_factors_rescaled = train_factors_rescaled.reshape(
-    #     (train_factors_rescaled.shape[0], 1, train_factors_rescaled.shape[1]))
-    # test_factors_rescaled = test_factors_rescaled.reshape(
-    #     (test_factors_rescaled.shape[0], 1, test_factors_rescaled.shape[1]))
-
     print("Reshaped Train factors shape:", train_factors_rescaled.shape)
     print("Reshaped Test factors shape:", test_factors_rescaled.shape)
 
     time_steps = 1  # assuming each sample is treated as a single time step sequence.
+    max_trials = 25
+    executions_per_trial = 3
+    n_epochs = 50
+    batch_size = 10
 
     train_factors_rescaled = train_factors_rescaled.reshape((-1, time_steps, train_factors_rescaled.shape[1]))
     test_factors_rescaled = test_factors_rescaled.reshape((-1, time_steps, test_factors_rescaled.shape[1]))
 
-
     def build_model(hp):
         model = Sequential()
-        # Start with a Bidirectional LSTM layer to process data forward and backward; capture patterns from both directions in time series data
-        model.add(Bidirectional(
-            LSTM(
-                # Dynamically set number of neurons based on tuner result
-                units=hp.Int('units_lstm1', min_value=32, max_value=128, step=32),
-                input_shape=(1, train_factors_rescaled.shape[2]),
-                activation='tanh', # tanh activation function for to capture nonlinear relationships
-                return_sequences=hp.Int('num_lstm_layers', 1, 8) > 1,
-                kernel_regularizer=l2(hp.Float('l2_lstm1', min_value=0.01, max_value=0.1, step=0.01)) # penalty on layer weights to prevent overfitting
-            )
+        # First LSTM layer needs to specify input_shape
+        model.add(LSTM(
+            units=hp.Int('num_units', min_value=32, max_value=64, default=32),
+            activation=hp.Choice('activation', ['relu', 'tanh', 'linear', 'selu', 'elu']),
+            recurrent_dropout=hp.Float('recurrent_dropout', min_value=0.0, max_value=0.5, default=0.2),
+            input_shape=(1, train_factors_rescaled.shape[2]),
+            return_sequences=hp.Int('num_rnn_layers', min_value=1, max_value=12, default=3) > 1
         ))
 
-        # Adding more LSTM layers based on tuner
-        for i in range(hp.Int('num_lstm_layers', 1, 8)):  # Tuning the number of additional LSTM layers from 1 to 8
+        # Additional LSTM layers
+        for i in range(hp.Int('num_rnn_layers', min_value=1, max_value=12, default=3) - 1):
             model.add(LSTM(
-                units=hp.Int('units_lstm' + str(i + 1), min_value=32, max_value=128, step=32),
-                activation='tanh',
-                return_sequences= (i < hp.Int('num_lstm_layers', 1, 8) - 1),
-                kernel_regularizer=l2(hp.Float('l2_lstm' + str(i + 1), min_value=0.01, max_value=0.1, step=0.01))
+                units=hp.Int('num_units', min_value=32, max_value=64, default=32),
+                activation=hp.Choice('activation', ['relu', 'tanh', 'linear', 'selu', 'elu']),
+                recurrent_dropout=hp.Float('recurrent_dropout', min_value=0.0, max_value=0.5, default=0.2),
+                return_sequences=i < hp.Int('num_rnn_layers', min_value=1, max_value=12, default=3) - 2
             ))
 
-        model.add(Dropout(hp.Float('dropout', min_value=0.1, max_value=0.5, step=0.1)))
-        model.add(Dense(1, activation='relu'))
+        model.add(Dense(1, activation='linear'))
         model.compile(
-            optimizer='adam',
-            loss='mse'
+            optimizer=keras.optimizers.Adam(
+                hp.Float('learning_rate', min_value=1e-4, max_value=1e-2, sampling='LOG', default=1e-3)
+            ),
+            loss='mse',
+            metrics=['mse']
         )
         return model
 
-    # Callbacks for early stopping and learning rate reduction
-    early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
-    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=5, min_lr=0.001)
+    bayesian_opt_tuner = BayesianOptimization(build_model,
+                                              objective='mse',
+                                              max_trials=max_trials,
+                                              executions_per_trial=executions_per_trial,
+                                              directory='C:/Users/dansz/PycharmProjects/Thesis/lstm_tuner',
+                                              project_name='lstm_optim_advanced',
+                                              overwrite=True
+                                              )
+    bayesian_opt_tuner.search(train_factors_rescaled, train_targets_rescaled,
+                              epochs=n_epochs,
+                              # batch_size = batch_size,
+                              validation_data = (test_factors_rescaled, test_targets_rescaled),
+                              validation_split = 0.2,
+                              verbose=1)
 
-    tuner = keras_tuner.RandomSearch(
-        build_model,
-        objective='val_loss',
-        max_trials=50,
-        executions_per_trial=3,  # Increasing this for more robust results
-        directory='C:/Users/dansz/PycharmProjects/Thesis/lstm_tuner',
-        project_name='lstm_optim_advanced',
-        overwrite=True
-    )
+    bayes_opt_model_best_model = bayesian_opt_tuner.get_best_models(num_models=1)
+    best_model = bayes_opt_model_best_model[0]
 
-    def run_tuner_with_batch_size():
-        # Running the tuner with different batch sizes
-        best_score = float('inf')
-        best_model = None
-        best_batch_size = None
-        for batch_size in [10, 20, 30, 40]:  # You can customize these values
-            tuner.search(train_factors_rescaled, train_targets_rescaled,
-                         epochs=50,
-                         batch_size=batch_size,
-                         validation_data=(test_factors_rescaled, test_targets_rescaled),
-                         callbacks=[early_stopping, reduce_lr])
-            best_trial = tuner.oracle.get_best_trials(num_trials=1)[0]
-            if best_trial.score < best_score:
-                best_score = best_trial.score
-                best_model = tuner.get_best_models(num_models=1)[0]
-                best_batch_size = batch_size
-
-        return best_model, best_batch_size
-
-    best_model, best_batch_size = run_tuner_with_batch_size()
     lstm_pred = best_model.predict(test_factors_rescaled)
 
     # LSTM Metrics
@@ -299,6 +366,169 @@ for country_data in countries:
     lstm_MAPE = mean_absolute_percentage_error(test_targets_rescaled, lstm_pred)
     lstm_OOS_R2 = r2_score(test_targets_rescaled, lstm_pred)
     lstm_OOS_GW_R2 = GW_R2_score(lstm_MSE, hist_MSE)
+
+    # Plot LSTM target predictions
+    lstm_pred = lstm_pred.flatten()
+
+    pred_series_LSTM = pd.Series(lstm_pred, index=test_targets.index)
+    actual_rescaled_series = pd.Series(test_targets_rescaled.flatten(), index=test_targets.index)
+
+    pred_series_LSTM.plot(label='Predicted')
+    actual_rescaled_series.plot(label='Actual')
+    plt.ylabel('Predicted Excess Return')
+    plt.title('Optimized LSTM Prediction')
+    plt.legend()
+    plt.show()
+
+    ################################################################
+    # Simple LSTM Model
+    ################################################################
+    def build_simple_model():
+        model = Sequential()
+        model.add(LSTM(50, input_shape=(1, train_factors_rescaled.shape[2])))
+        model.add(Dense(1, activation='relu'))
+        model.compile(optimizer='adam', loss='mse')
+        return model
+
+    simple_lstm_model = build_simple_model()
+    simple_lstm_model.fit(train_factors_rescaled, train_targets_rescaled, epochs = 100, batch_size = 10, validation_split = 0.2)
+    simple_lstm_pred = simple_lstm_model.predict(test_factors_rescaled)
+
+    print('SIMPLE LSTM VALUES')
+    print(simple_lstm_pred)
+
+    # Plot LSTM target predictions
+    simple_lstm_pred = simple_lstm_pred.flatten()
+
+    pred_series_simple_LSTM = pd.Series(simple_lstm_pred, index=test_targets.index)
+    actual_rescaled_series = pd.Series(test_targets_rescaled.flatten(), index=test_targets.index)
+
+    # Simple LSTM Metrics
+    simple_lstm_MSE = mean_squared_error(test_targets_rescaled, simple_lstm_pred)
+    simple_lstm_RMSE = root_mean_squared_error(test_targets_rescaled, simple_lstm_pred)
+    simple_lstm_dRMSE = dRMSE(simple_lstm_MSE, hist_MSE)
+    simple_lstm_MAPE = mean_absolute_percentage_error(test_targets_rescaled, simple_lstm_pred)
+    simple_lstm_OOS_R2 = r2_score(test_targets_rescaled, simple_lstm_pred)
+    simple_lstm_OOS_GW_R2 = GW_R2_score(simple_lstm_MSE, hist_MSE)
+
+    pred_series_simple_LSTM.plot(label='Predicted')
+    actual_rescaled_series.plot(label='Actual')
+    plt.ylabel('Predicted Excess Return')
+    plt.title('Simple LSTM Prediction')
+    plt.legend()
+    plt.show()
+    # ################################################################
+    # # LSTM Model
+    # ################################################################
+    # print('Generating LSTM models...')
+    #
+    # print("Train factors shape:", train_factors_rescaled.shape)
+    # print("Test factors shape:", test_factors_rescaled.shape)
+    #
+    # # train_factors_rescaled = train_factors_rescaled.reshape(
+    # #     (train_factors_rescaled.shape[0], 1, train_factors_rescaled.shape[1]))
+    # # test_factors_rescaled = test_factors_rescaled.reshape(
+    # #     (test_factors_rescaled.shape[0], 1, test_factors_rescaled.shape[1]))
+    #
+    # print("Reshaped Train factors shape:", train_factors_rescaled.shape)
+    # print("Reshaped Test factors shape:", test_factors_rescaled.shape)
+    #
+    # time_steps = 1  # assuming each sample is treated as a single time step sequence.
+    # max_trials = 10
+    # executions_per_trial = 2
+    # n_epochs = 10
+    #
+    # train_factors_rescaled = train_factors_rescaled.reshape((-1, time_steps, train_factors_rescaled.shape[1]))
+    # test_factors_rescaled = test_factors_rescaled.reshape((-1, time_steps, test_factors_rescaled.shape[1]))
+    #
+    #
+    # def build_model(hp):
+    #     model = Sequential()
+    #     # Start with a Bidirectional LSTM layer to process data forward and backward; capture patterns from both directions in time series data
+    #     model.add(Bidirectional(
+    #         LSTM(
+    #             # Dynamically set number of neurons based on tuner result
+    #             units=hp.Int('units_lstm1', min_value=32, max_value=128, step=32),
+    #             input_shape=(1, train_factors_rescaled.shape[2]),
+    #             activation='tanh', # tanh activation function for to capture nonlinear relationships
+    #             return_sequences=hp.Int('num_lstm_layers', 1, 8) > 1,
+    #             kernel_regularizer=l2(hp.Float('l2_lstm1', min_value=0.01, max_value=0.1, step=0.01)) # penalty on layer weights to prevent overfitting
+    #         )
+    #     ))
+    #
+    #     # Adding more LSTM layers based on tuner
+    #     for i in range(hp.Int('num_lstm_layers', 1, 8)):  # Tuning the number of additional LSTM layers from 1 to 8
+    #         model.add(LSTM(
+    #             units=hp.Int('units_lstm' + str(i + 1), min_value=32, max_value=128, step=32),
+    #             activation='tanh',
+    #             return_sequences= (i < hp.Int('num_lstm_layers', 1, 8) - 1),
+    #             kernel_regularizer=l2(hp.Float('l2_lstm' + str(i + 1), min_value=0.01, max_value=0.1, step=0.01))
+    #         ))
+    #
+    #     model.add(Dropout(hp.Float('dropout', min_value=0.1, max_value=0.5, step=0.1)))
+    #     model.add(Dense(1, activation='relu'))
+    #     model.compile(
+    #         optimizer='adam',
+    #         loss='mse'
+    #     )
+    #     return model
+    #
+    # # Callbacks for early stopping and learning rate reduction
+    # early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+    # reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=5, min_lr=0.001)
+    #
+    # tuner = keras_tuner.RandomSearch(
+    #     build_model,
+    #     objective='val_loss',
+    #     max_trials=max_trials,
+    #     executions_per_trial=executions_per_trial,  # Increasing this for more robust results
+    #     directory='C:/Users/dansz/PycharmProjects/Thesis/lstm_tuner',
+    #     project_name='lstm_optim_advanced',
+    #     overwrite=True
+    # )
+    #
+    # def run_tuner_with_batch_size():
+    #     # Running the tuner with different batch sizes
+    #     best_score = float('inf')
+    #     best_model = None
+    #     best_batch_size = None
+    #     for batch_size in [10, 20, 30, 40]:  # You can customize these values
+    #         tuner.search(train_factors_rescaled, train_targets_rescaled,
+    #                      epochs=n_epochs,
+    #                      batch_size=batch_size,
+    #                      validation_data=(test_factors_rescaled, test_targets_rescaled),
+    #                      callbacks=[early_stopping, reduce_lr])
+    #         best_trial = tuner.oracle.get_best_trials(num_trials=1)[0]
+    #         if best_trial.score < best_score:
+    #             best_score = best_trial.score
+    #             best_model = tuner.get_best_models(num_models=1)[0]
+    #             best_batch_size = batch_size
+    #
+    #     return best_model, best_batch_size
+    #
+    # best_model, best_batch_size = run_tuner_with_batch_size()
+    # lstm_pred = best_model.predict(test_factors_rescaled)
+    #
+    # # LSTM Metrics
+    # lstm_MSE = mean_squared_error(test_targets_rescaled, lstm_pred)
+    # lstm_RMSE = root_mean_squared_error(test_targets_rescaled, lstm_pred)
+    # lstm_dRMSE = dRMSE(lstm_MSE, hist_MSE)
+    # lstm_MAPE = mean_absolute_percentage_error(test_targets_rescaled, lstm_pred)
+    # lstm_OOS_R2 = r2_score(test_targets_rescaled, lstm_pred)
+    # lstm_OOS_GW_R2 = GW_R2_score(lstm_MSE, hist_MSE)
+    #
+    # # Plot Random Forest target predictions
+    # lstm_pred = lstm_pred.flatten()
+    #
+    # pred_series_LSTM = pd.Series(lstm_pred, index=test_targets.index)
+    # actual_rescaled_series = pd.Series(test_targets_rescaled.flatten(), index=test_targets.index)
+    #
+    # pred_series_LSTM.plot(label='Predicted')
+    # actual_rescaled_series.plot(label='Actual')
+    # plt.ylabel('Predicted Excess Return')
+    # plt.title('Optimized LSTM Prediction')
+    # plt.legend()
+    # plt.show()
 
     ################################################################
     # Report all metrics
@@ -361,6 +591,16 @@ for country_data in countries:
     print(f'MAPE: {lstm_MAPE}')
     print(f'OOS R2: {lstm_OOS_R2}')
     print(f'OOS GW R2: {lstm_OOS_GW_R2}')
+    print('')
+
+    # Simple LSTM
+    print('Simple LSTM')
+    print(f'MSE: {simple_lstm_MSE}')
+    print(f'RMSE: {simple_lstm_RMSE}')
+    print(f'dRMSE: {simple_lstm_dRMSE}')
+    print(f'MAPE: {simple_lstm_MAPE}')
+    print(f'OOS R2: {simple_lstm_OOS_R2}')
+    print(f'OOS GW R2: {simple_lstm_OOS_GW_R2}')
     print('')
 
 # Code dump
@@ -597,3 +837,71 @@ for country_data in countries:
     #
     # best_model, best_batch_size = run_tuner_with_batch_size()
     # lstm_pred = best_model.predict(test_factors_rescaled)
+
+
+    # def build_model(hp):
+    #     model = Sequential()
+    #     # Start with a Bidirectional LSTM layer to process data forward and backward; capture patterns from both directions in time series data
+    #     model.add(Bidirectional(
+    #         LSTM(
+    #             # Dynamically set number of neurons based on tuner result
+    #             units=hp.Int('units_lstm1', min_value=32, max_value=128, step=32),
+    #             input_shape=(1, train_factors_rescaled_normalized.shape[2]),
+    #             activation='tanh', # tanh activation function for to capture nonlinear relationships
+    #             return_sequences=hp.Int('num_lstm_layers', 1, 8) > 1,
+    #             kernel_regularizer=l2(hp.Float('l2_lstm1', min_value=0.01, max_value=0.1, step=0.01)) # penalty on layer weights to prevent overfitting
+    #         )
+    #     ))
+    #
+    #     # Adding more LSTM layers based on tuner
+    #     for i in range(hp.Int('num_lstm_layers', 1, 8)):  # Tuning the number of additional LSTM layers from 1 to 8
+    #         model.add(LSTM(
+    #             units=hp.Int('units_lstm' + str(i + 1), min_value=32, max_value=128, step=32),
+    #             activation='tanh',
+    #             return_sequences= (i < hp.Int('num_lstm_layers', 1, 8) - 1),
+    #             kernel_regularizer=l2(hp.Float('l2_lstm' + str(i + 1), min_value=0.01, max_value=0.1, step=0.01))
+    #         ))
+    #
+    #     model.add(Dropout(hp.Float('dropout', min_value=0.1, max_value=0.5, step=0.1)))
+    #     model.add(Dense(1, activation='linear'))
+    #     model.compile(
+    #         optimizer='adam',
+    #         loss='mse'
+    #     )
+    #     return model
+    #
+    # # Callbacks for early stopping and learning rate reduction
+    # early_stopping = EarlyStopping(monitor='val_loss', patience=15, restore_best_weights=True)
+    # reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10, min_lr=0.001)
+    #
+    # tuner = keras_tuner.RandomSearch(
+    #     build_model,
+    #     objective='val_loss',
+    #     max_trials=max_trials,
+    #     executions_per_trial=executions_per_trial,  # Increasing this for more robust results
+    #     directory='C:/Users/dansz/PycharmProjects/Thesis/lstm_tuner',
+    #     project_name='lstm_optim_advanced',
+    #     overwrite=True
+    # )
+    #
+    # def run_tuner_with_batch_size():
+    #     # Running the tuner with different batch sizes
+    #     best_score = float('inf')
+    #     best_model = None
+    #     best_batch_size = None
+    #     for batch_size in [10]:  # You can customize these values
+    #         tuner.search(train_factors_rescaled_normalized, train_targets_rescaled_normalized,
+    #                      epochs=n_epochs,
+    #                      batch_size=batch_size,
+    #                      validation_data=(test_factors_rescaled_normalized, test_targets_rescaled_normalized),
+    #                      callbacks=[early_stopping, reduce_lr])
+    #         best_trial = tuner.oracle.get_best_trials(num_trials=1)[0]
+    #         if best_trial.score < best_score:
+    #             best_score = best_trial.score
+    #             best_model = tuner.get_best_models(num_models=1)[0]
+    #             best_batch_size = batch_size
+    #
+    #     return best_model, best_batch_size
+    #
+    # best_model, best_batch_size = run_tuner_with_batch_size()
+    # lstm_pred = best_model.predict(test_factors_rescaled_normalized)
