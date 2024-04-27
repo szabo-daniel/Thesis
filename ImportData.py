@@ -10,8 +10,6 @@ import tensorflow as tf
 from sklearn.feature_selection import SelectKBest
 from sklearn.feature_selection import f_regression
 
- #scales data to 0-1 range for neural network training
-
 from keras import Sequential
 from keras.layers import LSTM
 from keras.layers import Dense
@@ -47,78 +45,72 @@ pd.set_option('display.max_columns', None)
 ########################################################################################################################
 
 # Dates (Q1 1993 - Q3 2023)
-start_date = '1993-01-01'
-end_date = '2023-07-01'
+# start_date = '1993-01-01'
+# end_date = '2023-07-01'
 # end_date = '2021-10-01' #Note: set this as the end date if using GW factor data
 
 # Indices (note: first 3 are from market-based economies, last 3 are from bank-based economies)
 # May replace with MSCI data if I can get it
-index_list = ['^GSPC', '^FTSE', '^AXJO', '^N225', '^GDAXI', '^FCHI']
-index_names = ['SP500', 'FTSE100', 'ASX200', 'N225', 'DAX', 'CAC40']
-log_qtr_returns = pd.DataFrame()
+# index_list = ['^GSPC', '^FTSE', '^AXJO', '^N225', '^GDAXI', '^FCHI']
+# index_names = ['SP500', 'FTSE100', 'ASX200', 'N225', 'DAX', 'CAC40']
+# log_qtr_returns = pd.DataFrame()
 
 # Import quarterly factor data from Goyal and Welch (2008) paper
 GW_df = pd.read_excel('Country Data.xlsx', sheet_name='GW Data', index_col='Date', parse_dates=True)
 print(GW_df)
 
-# Risk-free rates (will eventually include in factor-specific file for each country)
-# NOTE: ONLY HAS USA DATA FOR NOW, WILL GET OTHER DATA IN ON BLOOMBERG (note to self - change to end of period)
-risk_free_rates = pd.read_csv('RiskFreeRates.csv', index_col='Date',parse_dates=True) # ERROR if risk-free rate = 0 since we take log version
+# # Risk-free rates (will eventually include in factor-specific file for each country)
+# # NOTE: ONLY HAS USA DATA FOR NOW, WILL GET OTHER DATA IN ON BLOOMBERG (note to self - change to end of period)
+# risk_free_rates = pd.read_csv('RiskFreeRates.csv', index_col='Date',parse_dates=True) # ERROR if risk-free rate = 0 since we take log version
+#
+# # Ensure risk-free rate DataFrame's index is in the same datetime format as returns dataframe
+# risk_free_rates.index = pd.to_datetime(risk_free_rates.index)
+# # risk_free_rates.iloc[:, :] = risk_free_rates.iloc[:, :] / 100 # convert risk-free rates to decimal form
+# risk_free_rates.index = risk_free_rates.index - pd.Timedelta(days=1) # due to way data is imported offset by one day
+# risk_free_rates = risk_free_rates.iloc[1:] # eliminate first row to sync up dates
+# log_risk_free_rates = np.log(1 + risk_free_rates) # convert to log risk-free
 
-# Ensure risk-free rate DataFrame's index is in the same datetime format as returns dataframe
-risk_free_rates.index = pd.to_datetime(risk_free_rates.index)
-# risk_free_rates.iloc[:, :] = risk_free_rates.iloc[:, :] / 100 # convert risk-free rates to decimal form
-risk_free_rates.index = risk_free_rates.index - pd.Timedelta(days=1) # due to way data is imported offset by one day
-risk_free_rates = risk_free_rates.iloc[1:] # eliminate first row to sync up dates
-log_risk_free_rates = np.log(1 + risk_free_rates) # convert to log risk-free
-
-ticker_count = 0 # Iterator for renaming columns
-
-for ticker in index_list:
-    # Import index price data from Yahoo Finance, keeping only the close prices
-    data = yf.download(ticker, start=start_date, end=end_date)
-    data = data.drop(['Open', 'Low', 'High', 'Adj Close', 'Volume'], axis=1)
-
-    # Convert prices to log returns - log(R) = log(Pt / Pt-1)
-    log_returns = np.log(data/data.shift(1))
-
-    # Resample log returns to quarterly time frame
-    log_qtr_returns_data = log_returns.resample('Q').sum()
-    log_qtr_returns_data.rename(columns={'Close': index_names[ticker_count]}, inplace=True) #rename dataframe columns
-
-    # If the quarterly_returns DataFrame is empty, initialize it with the data from the first ticker
-    if log_qtr_returns.empty:
-        log_qtr_returns = log_qtr_returns_data
-    else:
-        # Otherwise, join the new data with the existing DataFrame on the date index
-        log_qtr_returns = log_qtr_returns.join(log_qtr_returns_data, how='outer')
-
-    ticker_count += 1
-
-excess_returns = log_qtr_returns.copy()
+# ticker_count = 0 # Iterator for renaming columns
+#
+# for ticker in index_list:
+#     # Import index price data from Yahoo Finance, keeping only the close prices
+#     data = yf.download(ticker, start=start_date, end=end_date)
+#     data = data.drop(['Open', 'Low', 'High', 'Adj Close', 'Volume'], axis=1)
+#
+#     # Convert prices to log returns - log(R) = log(Pt / Pt-1)
+#     log_returns = np.log(data/data.shift(1))
+#
+#     # Resample log returns to quarterly time frame
+#     log_qtr_returns_data = log_returns.resample('Q').sum()
+#     log_qtr_returns_data.rename(columns={'Close': index_names[ticker_count]}, inplace=True) #rename dataframe columns
+#
+#     # If the quarterly_returns DataFrame is empty, initialize it with the data from the first ticker
+#     if log_qtr_returns.empty:
+#         log_qtr_returns = log_qtr_returns_data
+#     else:
+#         # Otherwise, join the new data with the existing DataFrame on the date index
+#         log_qtr_returns = log_qtr_returns.join(log_qtr_returns_data, how='outer')
+#
+#     ticker_count += 1
+#
+# excess_returns = log_qtr_returns.copy()
 # excess_returns['SP500'] = excess_returns['SP500'] + np.log(GW_df['D12']).values[1:]
 
-# Calculate excess index returns
-for ticker in index_names:
-    rf_column = f'Rf_{ticker}'
-    if rf_column in log_risk_free_rates.columns:
-        excess_returns[ticker] = excess_returns[ticker] - log_risk_free_rates[rf_column]
+# # Calculate excess index returns
+# for ticker in index_names:
+#     rf_column = f'Rf_{ticker}'
+#     if rf_column in log_risk_free_rates.columns:
+#         excess_returns[ticker] = excess_returns[ticker] - log_risk_free_rates[rf_column]
 
 
-# Test prints
-print('INITIAL PRINTS')
-print(excess_returns)
-print(log_qtr_returns)
-print(risk_free_rates)
+# # Test prints
+# print('INITIAL PRINTS')
+# print(excess_returns)
+# print(log_qtr_returns)
+# print(risk_free_rates)
 ########################################################################################################################
 # IMPORT MACRO FACTORS FOR EACH COUNTRY
 ########################################################################################################################
-
-# Currently building out Excel file that includes macro factors for each economy.
-# Refer to Country Data.xlsx for current progress
-# The final version of data will be in the following form:
-# Date | Factor | ... for countries. Will have separate dataframe for each country
-
 # Organize dataframes for analysis - beginning with excess returns
 
 # United States
@@ -132,34 +124,15 @@ print('factor list')
 print(US_factor_list)
 
 US_data = pd.DataFrame(index=GW_df.index)
-# US_data['ER'] = excess_returns['SP500']*100
-# print('TESTING')
-# print('ER length')
-# print(len(excess_returns['SP500']))
-# print('D12 length')
-# print(len(GW_df['D12']))
-# US_data['ER'] = excess_returns['SP500'] # Price return
-# GW_df.set_index("Date", inplace=True)
 US_data['ER'] = GW_df['EqPrem']
 # print(US_data['ER'])
 # US_data['ER'] = (np.log(GW_df['Index'] + GW_df['D12']) - np.log(GW_df['Rfree'])).values[1:]
-print('ER TEST PRINTS')
-print(US_data['ER'])
-print('GW ER TEST')
-print(GW_df['EqPrem'])
 
 # Read in all factors from list of given factors into one dataframe
 for factor in US_factor_list:
     US_data[factor] = US_factors[factor]
 
 # Read in GW factors (comment out if not used)
-# US_data['div_price'] = (np.log(GW_df['D12']) - np.log(GW_df['Index'])).values[1:] # makes sure that indexes aren't an issue, an pastes only values over. Start at 1 to omit header as a value
-# US_data['div_yield'] = (np.log(GW_df['D12']) - np.log(GW_df['Index'].shift(1))).values[1:] #check logic on this, should work
-# US_data['earnings_price'] = (np.log(GW_df['E12']) - np.log(GW_df['Index'])).values[1:]
-# US_data['dividend_payout'] = (np.log(GW_df['D12']) - np.log(GW_df['E12'])).values[1:]
-# US_data['term_spread'] = (GW_df['lty'] - GW_df['tbl']).values[1:]
-# US_data['default_yield_spread'] = (GW_df['BAA'] - GW_df['AAA']).values[1:]
-# US_data['default_return_spread'] = (GW_df['corpr'] - GW_df['ltr']).values[1:]
 US_data['div_price'] = (np.log(GW_df['D12']) - np.log(GW_df['Index'])).values # makes sure that indexes aren't an issue, an pastes only values over. Start at 1 to omit header as a value
 US_data['div_yield'] = (np.log(GW_df['D12']) - np.log(GW_df['Index'].shift(1))).values #check logic on this, should work
 US_data['earnings_price'] = (np.log(GW_df['E12']) - np.log(GW_df['Index'])).values
@@ -171,71 +144,72 @@ US_data['book_to_market'] = GW_df['b/m']
 US_data['stock_variance'] = GW_df['svar']
 US_data['investment_to_capital'] = GW_df['ik']
 
-#
 print('US DATA PRINT')
 print(US_data)
 
+# Note: Read in sheet containing index and risk-free return data for other countries, since no longer using Goyal and Welch data.
+index_data = pd.read_excel('Country Data.xlsx', sheet_name='Index Data',index_col='Date',parse_dates=True)
 
-
-# # United Kingdom
-# UK_factors = pd.read_excel('Country Data.xlsx', sheet_name='UK Data',index_col='Date',parse_dates=True)
+# United Kingdom
+UK_factors = pd.read_excel('Country Data.xlsx', sheet_name='UK Data',index_col='Date',parse_dates=True)
 # UK_factors.index = UK_factors.index - pd.Timedelta(days=1)
-#
-# UK_factor_list = UK_factors.columns.tolist()
-#
-# UK_data = pd.DataFrame()
-# UK_data['ER'] = excess_returns['FTSE100']
-#
-# for factor in UK_factor_list:
-#     UK_data[factor] = UK_factors[factor]
-#
-# # Australia
-# AU_factors = pd.read_excel('Country Data.xlsx', sheet_name='AU Data',index_col='Date',parse_dates=True)
+
+UK_factor_list = UK_factors.columns.tolist()
+
+UK_data = pd.DataFrame()
+UK_data['EqPrem'] = index_data['UK_EqPrem']
+
+for factor in UK_factor_list:
+    UK_data[factor] = UK_factors[factor]
+
+print('UK DATA')
+print(UK_data)
+# Australia
+AU_factors = pd.read_excel('Country Data.xlsx', sheet_name='AU Data',index_col='Date',parse_dates=True)
 # AU_factors.index = AU_factors.index - pd.Timedelta(days=1)
-#
-# AU_factor_list = AU_factors.columns.tolist()
-#
-# AU_data = pd.DataFrame()
-# AU_data['ER'] = excess_returns['ASX200']
-#
-# for factor in AU_factor_list:
-#     AU_data[factor] = AU_factors[factor]
-#
-# # Germany
-# DE_factors = pd.read_excel('Country Data.xlsx', sheet_name='DE Data',index_col='Date',parse_dates=True)
-# DE_factors.index = DE_factors.index - pd.Timedelta(days=1)
-#
-# DE_factor_list = DE_factors.columns.tolist()
-#
-# DE_data = pd.DataFrame()
+
+AU_factor_list = AU_factors.columns.tolist()
+
+AU_data = pd.DataFrame()
+
+for factor in AU_factor_list:
+    AU_data[factor] = AU_factors[factor]
+
+# Germany
+DE_factors = pd.read_excel('Country Data.xlsx', sheet_name='DE Data',index_col='Date',parse_dates=True)
+DE_factors.index = DE_factors.index - pd.Timedelta(days=1)
+
+DE_factor_list = DE_factors.columns.tolist()
+
+DE_data = pd.DataFrame()
 # DE_data['ER'] = excess_returns['DAX']
-#
-# for factor in DE_factor_list:
-#     DE_data[factor] = DE_factors[factor]
-#
-# # France
-# FR_factors = pd.read_excel('Country Data.xlsx', sheet_name='FR Data',index_col='Date',parse_dates=True)
-# FR_factors.index = FR_factors.index - pd.Timedelta(days=1)
-#
-# FR_factor_list = FR_factors.columns.tolist()
-#
-# FR_data = pd.DataFrame()
+
+for factor in DE_factor_list:
+    DE_data[factor] = DE_factors[factor]
+
+# France
+FR_factors = pd.read_excel('Country Data.xlsx', sheet_name='FR Data',index_col='Date',parse_dates=True)
+FR_factors.index = FR_factors.index - pd.Timedelta(days=1)
+
+FR_factor_list = FR_factors.columns.tolist()
+
+FR_data = pd.DataFrame()
 # FR_data['ER'] = excess_returns['CAC40']
-#
-# for factor in FR_factor_list:
-#     FR_data[factor] = FR_factors[factor]
-#
-# # Japan
-# JP_factors = pd.read_excel('Country Data.xlsx', sheet_name='JP Data',index_col='Date',parse_dates=True)
-# JP_factors.index = JP_factors.index - pd.Timedelta(days=1)
-#
-# JP_factor_list = JP_factors.columns.tolist()
-#
-# JP_data = pd.DataFrame()
+
+for factor in FR_factor_list:
+    FR_data[factor] = FR_factors[factor]
+
+# Japan
+JP_factors = pd.read_excel('Country Data.xlsx', sheet_name='JP Data',index_col='Date',parse_dates=True)
+JP_factors.index = JP_factors.index - pd.Timedelta(days=1)
+
+JP_factor_list = JP_factors.columns.tolist()
+
+JP_data = pd.DataFrame()
 # JP_data['ER'] = excess_returns['N225']
-#
-# for factor in JP_factor_list:
-#     JP_data[factor] = JP_factors[factor]
+
+for factor in JP_factor_list:
+    JP_data[factor] = JP_factors[factor]
 
 ########################################################################################################################
 # BACKUP CODE DUMP (will delete later)
