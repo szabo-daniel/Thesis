@@ -258,14 +258,14 @@ for country_data in countries:
 
     max_factors_list = list(range(factor_count, 0, -1))
 
-    grid_rf = {'n_estimators': [50, 100, 150, 200, 250],
-               'max_depth': [None, 3, 5, 7, 10, 15, 20, 25, 30],
-               'max_features': max_factors_list,
-               'random_state': [42]}
-    # grid_rf = {'n_estimators': [100], #USE THIS ONE FOR TESTING ONLY
-    #            'max_depth': [5],
-    #            'max_features': [10],
+    # grid_rf = {'n_estimators': [50, 100, 150, 200, 250],
+    #            'max_depth': [None, 3, 5, 7, 10, 15, 20, 25, 30],
+    #            'max_features': max_factors_list,
     #            'random_state': [42]}
+    grid_rf = {'n_estimators': [100], #USE THIS ONE FOR TESTING ONLY
+               'max_depth': [5],
+               'max_features': [10],
+               'random_state': [42]}
 
     rf_model = RandomForestRegressor()
 
@@ -310,7 +310,7 @@ for country_data in countries:
     print('')
 
     ################################################################
-    # LSTM Model
+    # LSTM Model Preprocessing
     ################################################################
     print('Generating LSTM models...')
 
@@ -328,6 +328,50 @@ for country_data in countries:
 
     train_factors_rescaled = train_factors_rescaled.reshape((-1, time_steps, train_factors_rescaled.shape[1]))
     test_factors_rescaled = test_factors_rescaled.reshape((-1, time_steps, test_factors_rescaled.shape[1]))
+
+
+    ################################################################
+    # Simple LSTM Model - was working on previous run, will fix
+    ################################################################
+    def build_simple_model():
+        model = Sequential()
+        model.add(LSTM(50, input_shape=(1, train_factors_rescaled.shape[2])))
+        model.add(Dense(1, activation='linear'))
+        model.compile(optimizer='adam', loss='mse')
+        return model
+
+    simple_lstm_model = build_simple_model()
+    simple_lstm_model.fit(train_factors_rescaled, train_targets_rescaled, epochs=100, batch_size=10,
+                          validation_split=0.2)
+    simple_lstm_pred = simple_lstm_model.predict(test_factors_rescaled)
+
+    print('SIMPLE LSTM VALUES')
+    print(simple_lstm_pred)
+
+    # Plot LSTM target predictions
+    simple_lstm_pred = simple_lstm_pred.flatten()
+
+    pred_series_simple_LSTM = pd.Series(simple_lstm_pred, index=test_targets.index)
+    actual_rescaled_series = pd.Series(test_targets_rescaled.flatten(), index=test_targets.index)
+
+    # Simple LSTM Metrics
+    simple_lstm_MSE = mean_squared_error(test_targets_rescaled, simple_lstm_pred)
+    simple_lstm_RMSE = root_mean_squared_error(test_targets_rescaled, simple_lstm_pred)
+    simple_lstm_dRMSE = dRMSE(simple_lstm_MSE, hist_MSE)
+    simple_lstm_MAPE = mean_absolute_percentage_error(test_targets_rescaled, simple_lstm_pred)
+    simple_lstm_OOS_R2 = r2_score(test_targets_rescaled, simple_lstm_pred)
+    simple_lstm_OOS_GW_R2 = GW_R2_score(simple_lstm_MSE, hist_MSE)
+
+    pred_series_simple_LSTM.plot(label='Predicted')
+    actual_rescaled_series.plot(label='Actual')
+    plt.ylabel('Predicted Excess Return')
+    plt.title('Simple LSTM Prediction')
+    plt.legend()
+    plt.show()
+
+    ################################################################
+    # LSTM Model
+    ################################################################
 
     def build_model(hp):
         model = Sequential()
@@ -369,7 +413,7 @@ for country_data in countries:
                                               )
     bayesian_opt_tuner.search(train_factors_rescaled, train_targets_rescaled,
                               epochs=n_epochs,
-                              # batch_size = batch_size,
+                              batch_size = batch_size,
                               validation_data = (test_factors_rescaled, test_targets_rescaled),
                               validation_split = 0.2,
                               verbose=1)
@@ -397,44 +441,6 @@ for country_data in countries:
     actual_rescaled_series.plot(label='Actual')
     plt.ylabel('Predicted Excess Return')
     plt.title('Optimized LSTM Prediction')
-    plt.legend()
-    plt.show()
-
-    ################################################################
-    # Simple LSTM Model - was working on previous run, will fix
-    ################################################################
-    def build_simple_model():
-        model = Sequential()
-        model.add(LSTM(50, input_shape=(1, train_factors_rescaled.shape[2])))
-        model.add(Dense(1, activation='relu'))
-        model.compile(optimizer='adam', loss='mse')
-        return model
-
-    simple_lstm_model = build_simple_model()
-    simple_lstm_model.fit(train_factors_rescaled, train_targets_rescaled, epochs = 100, batch_size = 10, validation_split = 0.2)
-    simple_lstm_pred = simple_lstm_model.predict(test_factors_rescaled)
-
-    print('SIMPLE LSTM VALUES')
-    print(simple_lstm_pred)
-
-    # Plot LSTM target predictions
-    simple_lstm_pred = simple_lstm_pred.flatten()
-
-    pred_series_simple_LSTM = pd.Series(simple_lstm_pred, index=test_targets.index)
-    actual_rescaled_series = pd.Series(test_targets_rescaled.flatten(), index=test_targets.index)
-
-    # Simple LSTM Metrics
-    simple_lstm_MSE = mean_squared_error(test_targets_rescaled, simple_lstm_pred)
-    simple_lstm_RMSE = root_mean_squared_error(test_targets_rescaled, simple_lstm_pred)
-    simple_lstm_dRMSE = dRMSE(simple_lstm_MSE, hist_MSE)
-    simple_lstm_MAPE = mean_absolute_percentage_error(test_targets_rescaled, simple_lstm_pred)
-    simple_lstm_OOS_R2 = r2_score(test_targets_rescaled, simple_lstm_pred)
-    simple_lstm_OOS_GW_R2 = GW_R2_score(simple_lstm_MSE, hist_MSE)
-
-    pred_series_simple_LSTM.plot(label='Predicted')
-    actual_rescaled_series.plot(label='Actual')
-    plt.ylabel('Predicted Excess Return')
-    plt.title('Simple LSTM Prediction')
     plt.legend()
     plt.show()
 
