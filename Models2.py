@@ -29,7 +29,7 @@ std_target_scaler = StandardScaler()
 
 # US_data = US_data[1:-1]
 countries = [US_data, UK_data]
-print(US_data) #good- all values read in properly
+# print(US_data) #good- all values read in properly
 
 def GW_R2_score(MSE_A, MSE_N):
     # MSE_A is the mean squared error of the test model
@@ -46,14 +46,14 @@ for country_data in countries:
         country = 'United States'
     elif country_data.equals(UK_data):
         country = 'United Kingdom'
-    elif country_data.equals(AU_data):
-        country = 'Australia'
-    elif country_data.equals(DE_data):
-        country = 'Germany'
-    elif country_data.equals(FR_data):
-        country = 'France'
-    elif country_data.equals(JP_data):
-        country = 'Japan'
+    # elif country_data.equals(AU_data):
+    #     country = 'Australia'
+    # elif country_data.equals(DE_data):
+    #     country = 'Germany'
+    # elif country_data.equals(FR_data):
+    #     country = 'France'
+    # elif country_data.equals(JP_data):
+    #     country = 'Japan'
     else:
         country = 'Invalid'
 
@@ -65,9 +65,11 @@ for country_data in countries:
     #############################################################
     # 1. Not rescaled
     targets = country_data.iloc[:, 0]
-    factors = country_data.iloc[:, 1:].shift(-1) # Lag factor data back by one period to prevent look-ahead bias
-    factors = factors[:-1] # Due to lag drop NaN in last row
-    targets = targets[:-1] # Drop last row to bring time periods into line
+    factors = country_data.iloc[:, 1:].shift(1) # Lag factor data back by one period to prevent look-ahead bias
+    factors = factors.iloc[2:] # Due to lag drop NaN in last row
+    targets = targets.iloc[2:] # Drop last row to bring time periods into line
+    print(targets)
+    print(factors)
 
     # 2. Standardized (Mean zero and unit variance - useful for Lasso and Ridge)
     targets_standard = std_target_scaler.fit_transform(targets.values.reshape(-1, 1))
@@ -215,9 +217,6 @@ for country_data in countries:
         scores = cross_val_score(knn_model, train_factors_rescaled, train_targets_rescaled)
         cv_scores.append(-scores.mean())
 
-        # knn_model.fit(train_factors_rescaled, train_targets_rescaled)
-        # knn_pred = knn_model.predict(test_factors_rescaled)
-
     optimal_n = np.argmin(cv_scores) + 2
     print('')
     print(f'Optimal number of neighbors: {optimal_n}')
@@ -330,76 +329,76 @@ for country_data in countries:
     train_factors_rescaled = train_factors_rescaled.reshape((-1, time_steps, train_factors_rescaled.shape[1]))
     test_factors_rescaled = test_factors_rescaled.reshape((-1, time_steps, test_factors_rescaled.shape[1]))
 
-    # def build_model(hp):
-    #     model = Sequential()
-    #     # First LSTM layer needs to specify input_shape
-    #     model.add(Bidirectional(LSTM(
-    #         units=hp.Int('num_units', min_value=32, max_value=64, default=32),
-    #         activation=hp.Choice('activation', ['relu', 'tanh', 'linear', 'selu', 'elu']),
-    #         recurrent_dropout=hp.Float('recurrent_dropout', min_value=0.0, max_value=0.5, default=0.2),
-    #         input_shape=(1, train_factors_rescaled.shape[2]), # Input shape defined for one time step with all features
-    #         return_sequences=hp.Int('num_rnn_layers', min_value=1, max_value=12, default=3) > 1 # Ensures last LSTM layer will not return sequences
-    #     )))
-    #
-    #     # Dynamically add more LSTM layers based on the number of RNN layers hyperparameter
-    #     for i in range(hp.Int('num_rnn_layers', min_value=1, max_value=12, default=3) - 1):
-    #         model.add(LSTM(
-    #             units=hp.Int('num_units', min_value=32, max_value=64, default=32),
-    #             activation=hp.Choice('activation', ['relu', 'tanh', 'linear', 'selu', 'elu']),
-    #             recurrent_dropout=hp.Float('recurrent_dropout', min_value=0.0, max_value=0.5, default=0.2),
-    #             return_sequences=i < hp.Int('num_rnn_layers', min_value=1, max_value=12, default=3) - 2
-    #         ))
-    #
-    #     model.add(Dense(1, activation='linear'))
-    #     model.compile(
-    #         optimizer=keras.optimizers.Adam(
-    #             hp.Float('learning_rate', min_value=1e-4, max_value=1e-2, sampling='LOG', default=1e-3)
-    #         ),
-    #         loss='mse',
-    #         metrics=['mse']
-    #     )
-    #     return model
-    #
-    # bayesian_opt_tuner = BayesianOptimization(build_model,
-    #                                           objective='mse',
-    #                                           max_trials=max_trials,
-    #                                           executions_per_trial=executions_per_trial,
-    #                                           directory='C:/Users/dansz/PycharmProjects/Thesis/lstm_tuner',
-    #                                           project_name='lstm_optim_advanced',
-    #                                           overwrite=True
-    #                                           )
-    # bayesian_opt_tuner.search(train_factors_rescaled, train_targets_rescaled,
-    #                           epochs=n_epochs,
-    #                           # batch_size = batch_size,
-    #                           validation_data = (test_factors_rescaled, test_targets_rescaled),
-    #                           validation_split = 0.2,
-    #                           verbose=1)
-    #
-    # bayes_opt_model_best_model = bayesian_opt_tuner.get_best_models(num_models=1)
-    # best_model = bayes_opt_model_best_model[0]
-    #
-    # lstm_pred = best_model.predict(test_factors_rescaled)
-    #
-    # # LSTM Metrics
-    # lstm_MSE = mean_squared_error(test_targets_rescaled, lstm_pred)
-    # lstm_RMSE = root_mean_squared_error(test_targets_rescaled, lstm_pred)
-    # lstm_dRMSE = dRMSE(lstm_MSE, hist_MSE)
-    # lstm_MAPE = mean_absolute_percentage_error(test_targets_rescaled, lstm_pred)
-    # lstm_OOS_R2 = r2_score(test_targets_rescaled, lstm_pred)
-    # lstm_OOS_GW_R2 = GW_R2_score(lstm_MSE, hist_MSE)
-    #
-    # # Plot LSTM target predictions
-    # lstm_pred = lstm_pred.flatten()
-    #
-    # pred_series_LSTM = pd.Series(lstm_pred, index=test_targets.index)
-    # actual_rescaled_series = pd.Series(test_targets_rescaled.flatten(), index=test_targets.index)
-    #
-    # pred_series_LSTM.plot(label='Predicted')
-    # actual_rescaled_series.plot(label='Actual')
-    # plt.ylabel('Predicted Excess Return')
-    # plt.title('Optimized LSTM Prediction')
-    # plt.legend()
-    # plt.show()
+    def build_model(hp):
+        model = Sequential()
+        # First LSTM layer needs to specify input_shape
+        model.add(Bidirectional(LSTM(
+            units=hp.Int('num_units', min_value=32, max_value=64, default=32),
+            activation=hp.Choice('activation', ['relu', 'tanh', 'linear', 'selu', 'elu']),
+            recurrent_dropout=hp.Float('recurrent_dropout', min_value=0.0, max_value=0.5, default=0.2),
+            input_shape=(1, train_factors_rescaled.shape[2]), # Input shape defined for one time step with all features
+            return_sequences=hp.Int('num_rnn_layers', min_value=1, max_value=12, default=3) > 1 # Ensures last LSTM layer will not return sequences
+        )))
+
+        # Dynamically add more LSTM layers based on the number of RNN layers hyperparameter
+        for i in range(hp.Int('num_rnn_layers', min_value=1, max_value=12, default=3) - 1):
+            model.add(LSTM(
+                units=hp.Int('num_units', min_value=32, max_value=64, default=32),
+                activation=hp.Choice('activation', ['relu', 'tanh', 'linear', 'selu', 'elu']),
+                recurrent_dropout=hp.Float('recurrent_dropout', min_value=0.0, max_value=0.5, default=0.2),
+                return_sequences=i < hp.Int('num_rnn_layers', min_value=1, max_value=12, default=3) - 2
+            ))
+
+        model.add(Dense(1, activation='linear'))
+        model.compile(
+            optimizer=keras.optimizers.Adam(
+                hp.Float('learning_rate', min_value=1e-4, max_value=1e-2, sampling='LOG', default=1e-3)
+            ),
+            loss='mse',
+            metrics=['mse']
+        )
+        return model
+
+    bayesian_opt_tuner = BayesianOptimization(build_model,
+                                              objective='mse',
+                                              max_trials=max_trials,
+                                              executions_per_trial=executions_per_trial,
+                                              directory='C:/Users/dansz/PycharmProjects/Thesis/lstm_tuner',
+                                              project_name='lstm_optim_advanced',
+                                              overwrite=True
+                                              )
+    bayesian_opt_tuner.search(train_factors_rescaled, train_targets_rescaled,
+                              epochs=n_epochs,
+                              # batch_size = batch_size,
+                              validation_data = (test_factors_rescaled, test_targets_rescaled),
+                              validation_split = 0.2,
+                              verbose=1)
+
+    bayes_opt_model_best_model = bayesian_opt_tuner.get_best_models(num_models=1)
+    best_model = bayes_opt_model_best_model[0]
+
+    lstm_pred = best_model.predict(test_factors_rescaled)
+
+    # LSTM Metrics
+    lstm_MSE = mean_squared_error(test_targets_rescaled, lstm_pred)
+    lstm_RMSE = root_mean_squared_error(test_targets_rescaled, lstm_pred)
+    lstm_dRMSE = dRMSE(lstm_MSE, hist_MSE)
+    lstm_MAPE = mean_absolute_percentage_error(test_targets_rescaled, lstm_pred)
+    lstm_OOS_R2 = r2_score(test_targets_rescaled, lstm_pred)
+    lstm_OOS_GW_R2 = GW_R2_score(lstm_MSE, hist_MSE)
+
+    # Plot LSTM target predictions
+    lstm_pred = lstm_pred.flatten()
+
+    pred_series_LSTM = pd.Series(lstm_pred, index=test_targets.index)
+    actual_rescaled_series = pd.Series(test_targets_rescaled.flatten(), index=test_targets.index)
+
+    pred_series_LSTM.plot(label='Predicted')
+    actual_rescaled_series.plot(label='Actual')
+    plt.ylabel('Predicted Excess Return')
+    plt.title('Optimized LSTM Prediction')
+    plt.legend()
+    plt.show()
 
     ################################################################
     # Simple LSTM Model - was working on previous run, will fix
@@ -492,16 +491,16 @@ for country_data in countries:
     print(f'OOS GW R2: {rf_OOS_GW_R2}')
     print('')
 
-    # # LSTM
-    # print('LSTM')
-    # print(f'MSE: {lstm_MSE}')
-    # print(f'RMSE: {lstm_RMSE}')
-    # print(f'dRMSE: {lstm_dRMSE}')
-    # print(f'MAPE: {lstm_MAPE}')
-    # print(f'OOS R2: {lstm_OOS_R2}')
-    # print(f'OOS GW R2: {lstm_OOS_GW_R2}')
-    # print('')
-    #
+    # LSTM
+    print('LSTM')
+    print(f'MSE: {lstm_MSE}')
+    print(f'RMSE: {lstm_RMSE}')
+    print(f'dRMSE: {lstm_dRMSE}')
+    print(f'MAPE: {lstm_MAPE}')
+    print(f'OOS R2: {lstm_OOS_R2}')
+    print(f'OOS GW R2: {lstm_OOS_GW_R2}')
+    print('')
+
     # Simple LSTM
     print('Simple LSTM')
     print(f'MSE: {simple_lstm_MSE}')
@@ -599,26 +598,25 @@ for country_data in countries:
     print(f'Random Forest Sharpe: {rf_sharpe}')
     print('')
 
-
-    #     # Bayesian LSTM
-    #     # Since scaled, retransform predicted values to original scale
-    #     lstm_pred_origScale = scaler.inverse_transform(lstm_pred)
-    #
-    #     # Calculate metrics
-    #     bLSTM_returns = np.where(lstm_pred_origScale > 0, portfolio['IndexRet'], portfolio['RfreeRet'])
-    #     mean_bLSTM_returns = np.mean(bLSTM_returns)
-    #     std_bLSTM_returns = np.std(bLSTM_returns)
-    #     bLSTM_sharpe = mean_bLSTM_returns / std_bLSTM_returns if std_bLSTM_returns != 0 else 0
-    #     print(f'Mean Bayesian LSTM Returns: {mean_bLSTM_returns}')
-    #     print(f'Bayesian LSTM Standard Deviation: {std_bLSTM_returns}')
-    #     print(f'Bayesian LSTM Sharpe: {bLSTM_sharpe}')
-    #
-    # Simple LSTM
+    # Bayesian LSTM
     # Since scaled, retransform predicted values to original scale
-    simple_lstm_pred_origScale = mm_target_scaler.inverse_transform(simple_lstm_pred)
+    lstm_pred_origScale = mm_target_scaler.inverse_transform(lstm_pred.reshape(-1,1))
 
     # Calculate metrics
-    sLSTM_returns = np.where(simple_lstm_pred > 0, portfolio['IndexRet'], portfolio['RfreeRet'])
+    bLSTM_returns = np.where(lstm_pred_origScale > 0, portfolio['IndexRet'], portfolio['RfreeRet'])
+    mean_bLSTM_returns = np.mean(bLSTM_returns)
+    std_bLSTM_returns = np.std(bLSTM_returns)
+    bLSTM_sharpe = mean_bLSTM_returns / std_bLSTM_returns if std_bLSTM_returns != 0 else 0
+    print(f'Mean Bayesian LSTM Returns: {mean_bLSTM_returns}')
+    print(f'Bayesian LSTM Standard Deviation: {std_bLSTM_returns}')
+    print(f'Bayesian LSTM Sharpe: {bLSTM_sharpe}')
+
+    # Simple LSTM
+    # Since scaled, retransform predicted values to original scale
+    simple_lstm_pred_origScale = mm_target_scaler.inverse_transform(simple_lstm_pred.reshape(-1,1))
+
+    # Calculate metrics
+    sLSTM_returns = np.where(simple_lstm_pred_origScale > 0, portfolio['IndexRet'], portfolio['RfreeRet'])
     mean_sLSTM_returns = np.mean(sLSTM_returns)
     std_sLSTM_returns = np.std(sLSTM_returns)
     sLSTM_sharpe = mean_sLSTM_returns / std_sLSTM_returns if std_sLSTM_returns != 0 else 0

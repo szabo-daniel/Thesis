@@ -144,8 +144,9 @@ US_data['book_to_market'] = GW_df['b/m']
 US_data['stock_variance'] = GW_df['svar']
 US_data['investment_to_capital'] = GW_df['ik']
 
-print('US DATA PRINT')
+print('US DATA')
 print(US_data)
+print('')
 
 # Note: Read in sheet containing index and risk-free return data for other countries, since no longer using Goyal and Welch data.
 index_data = pd.read_excel('Country Data.xlsx', sheet_name='Index Data',index_col='Date',parse_dates=True)
@@ -164,52 +165,58 @@ for factor in UK_factor_list:
 
 print('UK DATA')
 print(UK_data)
-# Australia
-AU_factors = pd.read_excel('Country Data.xlsx', sheet_name='AU Data',index_col='Date',parse_dates=True)
-# AU_factors.index = AU_factors.index - pd.Timedelta(days=1)
+print('')
 
-AU_factor_list = AU_factors.columns.tolist()
-
-AU_data = pd.DataFrame()
-
-for factor in AU_factor_list:
-    AU_data[factor] = AU_factors[factor]
+# # Australia
+# AU_factors = pd.read_excel('Country Data.xlsx', sheet_name='AU Data',index_col='Date',parse_dates=True)
+# # AU_factors.index = AU_factors.index - pd.Timedelta(days=1)
+#
+# AU_factor_list = AU_factors.columns.tolist()
+#
+# AU_data = pd.DataFrame()
+#
+# for factor in AU_factor_list:
+#     AU_data[factor] = AU_factors[factor]
 
 # Germany
-DE_factors = pd.read_excel('Country Data.xlsx', sheet_name='DE Data',index_col='Date',parse_dates=True)
-DE_factors.index = DE_factors.index - pd.Timedelta(days=1)
+# DE_factors = pd.read_excel('Country Data.xlsx', sheet_name='DE Data',index_col='Date',parse_dates=True)
+# DE_factors.index = DE_factors.index - pd.Timedelta(days=1)
+#
+# DE_factor_list = DE_factors.columns.tolist()
+#
+# DE_data = pd.DataFrame()
+# DE_data['EqPrem'] = index_data['EqPrem']
+#
+# for factor in DE_factor_list:
+#     DE_data[factor] = DE_factors[factor]
+#
+# print('GERMANY DATA')
+# print(DE_data)
+# print('')
 
-DE_factor_list = DE_factors.columns.tolist()
+# # France
+# FR_factors = pd.read_excel('Country Data.xlsx', sheet_name='FR Data',index_col='Date',parse_dates=True)
+# FR_factors.index = FR_factors.index - pd.Timedelta(days=1)
+#
+# FR_factor_list = FR_factors.columns.tolist()
+#
+# FR_data = pd.DataFrame()
+# FR_data['EqPrem'] = index_data['EqPrem']
+#
+# for factor in FR_factor_list:
+#     FR_data[factor] = FR_factors[factor]
 
-DE_data = pd.DataFrame()
-# DE_data['ER'] = excess_returns['DAX']
-
-for factor in DE_factor_list:
-    DE_data[factor] = DE_factors[factor]
-
-# France
-FR_factors = pd.read_excel('Country Data.xlsx', sheet_name='FR Data',index_col='Date',parse_dates=True)
-FR_factors.index = FR_factors.index - pd.Timedelta(days=1)
-
-FR_factor_list = FR_factors.columns.tolist()
-
-FR_data = pd.DataFrame()
-# FR_data['ER'] = excess_returns['CAC40']
-
-for factor in FR_factor_list:
-    FR_data[factor] = FR_factors[factor]
-
-# Japan
-JP_factors = pd.read_excel('Country Data.xlsx', sheet_name='JP Data',index_col='Date',parse_dates=True)
-JP_factors.index = JP_factors.index - pd.Timedelta(days=1)
-
-JP_factor_list = JP_factors.columns.tolist()
-
-JP_data = pd.DataFrame()
-# JP_data['ER'] = excess_returns['N225']
-
-for factor in JP_factor_list:
-    JP_data[factor] = JP_factors[factor]
+# # Japan
+# JP_factors = pd.read_excel('Country Data.xlsx', sheet_name='JP Data',index_col='Date',parse_dates=True)
+# JP_factors.index = JP_factors.index - pd.Timedelta(days=1)
+#
+# JP_factor_list = JP_factors.columns.tolist()
+#
+# JP_data = pd.DataFrame()
+# # JP_data['ER'] = excess_returns['N225']
+#
+# for factor in JP_factor_list:
+#     JP_data[factor] = JP_factors[factor]
 
 ########################################################################################################################
 # BACKUP CODE DUMP (will delete later)
