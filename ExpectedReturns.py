@@ -1,18 +1,6 @@
 import numpy as np
 import pandas as pd
-import yfinance as yf
 import seaborn as sb
-import matplotlib.pyplot as plt
-import statsmodels.api as sm
-from pandas_datareader import DataReader as web
-
-import tensorflow as tf
-from sklearn.feature_selection import SelectKBest
-from sklearn.feature_selection import f_regression
-
-from keras import Sequential
-from keras.layers import LSTM
-from keras.layers import Dense
 
 import keras
 
@@ -202,8 +190,8 @@ std_factor_scaler = StandardScaler()
 std_target_scaler = StandardScaler()
 
 # US_data = US_data[1:-1]
-# countries = [US_data, UK_data, AU_data, DE_data, FR_data, JP_data]
-countries = [US_data]
+countries = [US_data, UK_data, AU_data, DE_data, FR_data, JP_data]
+# countries = [US_data]
 # print(US_data) #good- all values read in properly
 
 # def GW_R2_score(MSE_A, MSE_N):
@@ -273,7 +261,7 @@ for country_data in countries:
     plt.show()
 
     ############################################################
-    # Model 0 - Historical mean model
+    # Model 1 - OLS Linear Regression (benchmark)
     ############################################################
     print('Generating historical mean model...')
     total_length = len(targets)
@@ -285,19 +273,6 @@ for country_data in countries:
     hist_pred_test = hist_pred_all[-len(test_targets):] # Get test period data for the historical mean model
 
     hist_MSE = mean_squared_error(test_targets, hist_pred_test) # Used as benchmark for subsequent model evaulation
-
-    # # Model 1 - OLS linear regression model (kitchen sink)
-    # OLS = LinearRegression()
-    # OLS.fit(train_factors, train_targets)
-    # OLS_pred = OLS.predict(test_factors)
-    #
-    # # OLS Metrics
-    # OLS_MSE = mean_squared_error(test_targets, OLS_pred)
-    # OLS_RMSE = root_mean_squared_error(test_targets, OLS_pred)
-    # OLS_dRMSE = dRMSE(OLS_MSE, hist_MSE)
-    # OLS_MAPE = mean_absolute_percentage_error(test_targets, OLS_pred)
-    # OLS_OOS_R2 = r2_score(test_targets, OLS_pred)
-    # # OLS_OOS_GW_R2 = GW_R2_score(OLS_MSE, hist_MSE)
 
     # Model 1 - OLS linear regression model (kitchen sink)
     OLS = LinearRegression()
@@ -639,6 +614,7 @@ for country_data in countries:
     ################################################################
     # Report all metrics
     ################################################################
+    print(f'{country} Metrics')
     # OLS
     print('OLS Regression')
     print(f'MSE: {OLS_MSE}')
@@ -743,6 +719,7 @@ for country_data in countries:
     else:
         print('Invalid country input given')
 
+    print(f'{country} Portfolios')
     # OLS
     # If predicted equity risk premium is positive, invest in market index, otherwise, invest in risk-free asset
     ols_returns = np.where(OLS_pred > 0, portfolio['IndexRet'], portfolio['RfreeRet'])
