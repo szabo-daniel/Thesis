@@ -313,11 +313,11 @@ for country_data in countries:
     ridge_pred = ridge_model.predict(test_factors_standard)
 
     # Ridge Metrics
-    ridge_MSE = mean_squared_error(test_targets, ridge_pred)
-    ridge_RMSE = root_mean_squared_error(test_targets, ridge_pred)
+    ridge_MSE = mean_squared_error(test_targets_standard, ridge_pred)
+    ridge_RMSE = root_mean_squared_error(test_targets_standard, ridge_pred)
     ridge_dRMSE = dRMSE(ridge_MSE, hist_MSE)
-    ridge_MAPE = mean_absolute_percentage_error(test_targets, ridge_pred)
-    ridge_OOS_R2 = r2_score(test_targets, ridge_pred)
+    ridge_MAPE = mean_absolute_percentage_error(test_targets_standard, ridge_pred)
+    ridge_OOS_R2 = r2_score(test_targets_standard, ridge_pred)
     # ridge_OOS_GW_R2 = GW_R2_score(ridge_MSE, hist_MSE)
 
     # Plot Ridge target predictions
