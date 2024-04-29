@@ -1,8 +1,20 @@
-import keras
-import keras_tuner
+import numpy as np
 import pandas as pd
+import yfinance as yf
+import seaborn as sb
+import matplotlib.pyplot as plt
+import statsmodels.api as sm
+from pandas_datareader import DataReader as web
 
-from ImportData import *
+import tensorflow as tf
+from sklearn.feature_selection import SelectKBest
+from sklearn.feature_selection import f_regression
+
+from keras import Sequential
+from keras.layers import LSTM
+from keras.layers import Dense
+
+import keras
 
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler, scale, StandardScaler
@@ -19,6 +31,162 @@ from keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
 from keras.optimizers import Adam
 from keras_tuner import RandomSearch, HyperParameters, BayesianOptimization
 
+import warnings
+warnings.filterwarnings('ignore')
+pd.set_option('display.max_columns', None)
+
+########################################################################################################################
+# DATA DICTIONARY
+########################################################################################################################
+# 1. Dependent Variable
+# eqprem = Equity Risk Premium (for each index): index return - 3-month government bond yield (or 2 year)
+#
+# 2. Indices
+# SP500 = S&P 500 (USA)
+# FTSE100 = FTSE 100 (UK)
+# ASX200 = S&P/ASX 200 (Australia)
+# N225 = Nikkei 225 (Japan)
+# DAX = DAX (Germany)
+# CAC40 = CAC 30 (France)
+#
+# 2. Factors (all percentage changes)
+# Rf = 3-month government bond yield
+# GDP = Quarterly GDP % change (OECD)
+# GFCF = Gross fixed capital formation (OECD)
+# Infl = Inflation less food and energy
+# RHousing = Real Housing Prices
+# Oil = Global Brent Crude oil prices
+
+########################################################################################################################
+# KEY ASSUMPTIONS, SET DATES, IMPORT INDEX AND RISK-FREE DATA, AND CALCULATE EXCESS RETURNS
+########################################################################################################################
+
+# Import quarterly factor data from Goyal and Welch (2008) paper
+GW_df = pd.read_excel('Country Data.xlsx', sheet_name='GW Data', index_col='Date', parse_dates=True)
+print(GW_df)
+
+########################################################################################################################
+# IMPORT MACRO FACTORS FOR EACH COUNTRY
+########################################################################################################################
+# Organize dataframes for analysis - beginning with excess returns
+
+# United States
+# Line up quarterly dates for appending
+US_factors = pd.read_excel('Country Data.xlsx', sheet_name='US Data', index_col='Date', parse_dates=True)
+# US_factors.index = US_factors.index - pd.Timedelta(days=1)
+
+# Create list of all columns to iterate through
+US_factor_list = US_factors.columns.tolist()
+print('factor list')
+print(US_factor_list)
+
+US_data = pd.DataFrame(index=GW_df.index)
+US_data['ER'] = GW_df['EqPrem']
+# US_data['ER'] = (np.log(GW_df['Index'] + GW_df['D12']) - np.log(GW_df['Rfree'])).values[1:]
+
+# Read in all factors from list of given factors into one dataframe
+for factor in US_factor_list:
+    US_data[factor] = US_factors[factor]
+
+# Read in GW factors (comment out if not used)
+US_data['div_price'] = (np.log(GW_df['D12']) - np.log(GW_df['Index'])).values # makes sure that indexes aren't an issue, an pastes only values over. Start at 1 to omit header as a value
+US_data['div_yield'] = (np.log(GW_df['D12']) - np.log(GW_df['Index'].shift(1))).values #check logic on this, should work
+US_data['earnings_price'] = (np.log(GW_df['E12']) - np.log(GW_df['Index'])).values
+US_data['dividend_payout'] = (np.log(GW_df['D12']) - np.log(GW_df['E12'])).values
+US_data['term_spread'] = (GW_df['lty'] - GW_df['tbl']).values
+US_data['default_yield_spread'] = (GW_df['BAA'] - GW_df['AAA']).values
+US_data['default_return_spread'] = (GW_df['corpr'] - GW_df['ltr']).values
+US_data['book_to_market'] = GW_df['b/m']
+US_data['stock_variance'] = GW_df['svar']
+US_data['investment_to_capital'] = GW_df['ik']
+
+print('US DATA')
+print(US_data)
+print('')
+
+# Note: Read in sheet containing index and risk-free return data for other countries, since no longer using Goyal and Welch data.
+index_data = pd.read_excel('Country Data.xlsx', sheet_name='Index Data', index_col='Date', parse_dates=True)
+index_data_AU = pd.read_excel('Country Data.xlsx', sheet_name='AU Index Data', index_col='Date', parse_dates=True)
+index_data_JP = pd.read_excel('Country Data.xlsx', sheet_name='JP Index Data', index_col='Date', parse_dates=True)
+
+# United Kingdom
+UK_factors = pd.read_excel('Country Data.xlsx', sheet_name='UK Data', index_col='Date', parse_dates=True)
+
+UK_factor_list = UK_factors.columns.tolist()
+
+UK_data = pd.DataFrame()
+UK_data['EqPrem'] = index_data['UK_EqPrem']
+
+for factor in UK_factor_list:
+    UK_data[factor] = UK_factors[factor]
+
+print('UK DATA')
+print(UK_data)
+print('')
+
+# Australia
+AU_factors = pd.read_excel('Country Data.xlsx', sheet_name='AU Data',index_col='Date',parse_dates=True)
+
+AU_factor_list = AU_factors.columns.tolist()
+
+AU_data = pd.DataFrame()
+AU_data['EqPrem'] = index_data_AU['AU_EqPrem']
+
+for factor in AU_factor_list:
+    AU_data[factor] = AU_factors[factor]
+
+print('AUSTRALIA DATA')
+print(AU_data)
+print('')
+
+# Germany
+DE_factors = pd.read_excel('Country Data.xlsx', sheet_name='DE Data',index_col='Date',parse_dates=True)
+
+DE_factor_list = DE_factors.columns.tolist()
+
+DE_data = pd.DataFrame()
+DE_data['EqPrem'] = index_data['DE_EqPrem']
+
+for factor in DE_factor_list:
+    DE_data[factor] = DE_factors[factor]
+
+print('GERMANY DATA')
+print(DE_data)
+print('')
+
+# France
+FR_factors = pd.read_excel('Country Data.xlsx', sheet_name='FR Data',index_col='Date',parse_dates=True)
+
+FR_factor_list = FR_factors.columns.tolist()
+
+FR_data = pd.DataFrame()
+FR_data['EqPrem'] = index_data['FR_EqPrem']
+
+for factor in FR_factor_list:
+    FR_data[factor] = FR_factors[factor]
+
+print('FRANCE DATA')
+print(UK_data)
+print('')
+
+# Japan
+JP_factors = pd.read_excel('Country Data.xlsx', sheet_name='JP Data',index_col='Date',parse_dates=True)
+
+JP_factor_list = JP_factors.columns.tolist()
+
+JP_data = pd.DataFrame()
+JP_data['EqPrem'] = index_data_JP['JP_EqPrem']
+
+for factor in JP_factor_list:
+    JP_data[factor] = JP_factors[factor]
+
+print('JAPAN DATA')
+print(JP_data)
+print('')
+##########################################################
+# Model building below
+##########################################################
+
 n_iterations = 5
 test_size = 0.2
 
@@ -28,14 +196,14 @@ std_factor_scaler = StandardScaler()
 std_target_scaler = StandardScaler()
 
 # US_data = US_data[1:-1]
-countries = [US_data, UK_data]
+countries = [US_data, UK_data, AU_data, DE_data, FR_data, JP_data]
 # print(US_data) #good- all values read in properly
 
-def GW_R2_score(MSE_A, MSE_N):
-    # MSE_A is the mean squared error of the test model
-    # MSE_N is the mean squared error of the historical mean model
-    R2 = 1 - MSE_A / MSE_N
-    return R2
+# def GW_R2_score(MSE_A, MSE_N):
+#     # MSE_A is the mean squared error of the test model
+#     # MSE_N is the mean squared error of the historical mean model
+#     R2 = 1 - MSE_A / MSE_N
+#     return R2
 
 def dRMSE(MSE_A, MSE_N):
     dRMSE = np.mean(MSE_N) - np.sqrt(MSE_A)
@@ -46,14 +214,14 @@ for country_data in countries:
         country = 'United States'
     elif country_data.equals(UK_data):
         country = 'United Kingdom'
-    # elif country_data.equals(AU_data):
-    #     country = 'Australia'
-    # elif country_data.equals(DE_data):
-    #     country = 'Germany'
-    # elif country_data.equals(FR_data):
-    #     country = 'France'
-    # elif country_data.equals(JP_data):
-    #     country = 'Japan'
+    elif country_data.equals(AU_data):
+        country = 'Australia'
+    elif country_data.equals(DE_data):
+        country = 'Germany'
+    elif country_data.equals(FR_data):
+        country = 'France'
+    elif country_data.equals(JP_data):
+        country = 'Japan'
     else:
         country = 'Invalid'
 
@@ -122,7 +290,7 @@ for country_data in countries:
     OLS_dRMSE = dRMSE(OLS_MSE, hist_MSE)
     OLS_MAPE = mean_absolute_percentage_error(test_targets, OLS_pred)
     OLS_OOS_R2 = r2_score(test_targets, OLS_pred)
-    OLS_OOS_GW_R2 = GW_R2_score(OLS_MSE, hist_MSE)
+    # OLS_OOS_GW_R2 = GW_R2_score(OLS_MSE, hist_MSE)
 
     # Plot OLS target predictions
     pred_series_OLS = pd.Series(OLS_pred, index=test_targets.index)
@@ -150,7 +318,7 @@ for country_data in countries:
     ridge_dRMSE = dRMSE(ridge_MSE, hist_MSE)
     ridge_MAPE = mean_absolute_percentage_error(test_targets, ridge_pred)
     ridge_OOS_R2 = r2_score(test_targets, ridge_pred)
-    ridge_OOS_GW_R2 = GW_R2_score(ridge_MSE, hist_MSE)
+    # ridge_OOS_GW_R2 = GW_R2_score(ridge_MSE, hist_MSE)
 
     # Plot Ridge target predictions
     ridge_pred = ridge_pred.flatten()
@@ -182,7 +350,7 @@ for country_data in countries:
     lasso_dRMSE = dRMSE(lasso_MSE, hist_MSE)
     lasso_MAPE = mean_absolute_percentage_error(test_targets_standard, lasso_pred)
     lasso_OOS_R2 = r2_score(test_targets_standard, lasso_pred)
-    lasso_OOS_GW_R2 = GW_R2_score(lasso_MSE, hist_MSE)
+    # lasso_OOS_GW_R2 = GW_R2_score(lasso_MSE, hist_MSE)
 
     # Plot Lasso target predictions
     lasso_pred = lasso_pred.flatten()
@@ -210,7 +378,7 @@ for country_data in countries:
     max_test_metrics = None
     max_test_neighbors = None
 
-    for i in range(2, 300):
+    for i in range(2, 100):
         # print(f'Building model for {i} neighbors...')
         knn_model = KNeighborsRegressor(n_neighbors=i)
 
@@ -231,7 +399,7 @@ for country_data in countries:
     knn_dRMSE = dRMSE(knn_MSE, hist_MSE)
     knn_MAPE = mean_absolute_percentage_error(test_targets_rescaled, knn_pred)
     knn_OOS_R2 = r2_score(test_targets_rescaled, knn_pred)
-    knn_OOS_GW_R2 = GW_R2_score(knn_MSE, hist_MSE)
+    # knn_OOS_GW_R2 = GW_R2_score(knn_MSE, hist_MSE)
 
     # Plot KNN target predictions
     knn_pred = knn_pred.flatten()
@@ -262,9 +430,9 @@ for country_data in countries:
                'max_depth': [None, 3, 5, 7, 10, 15, 20, 25, 30],
                'max_features': max_factors_list,
                'random_state': [42]}
-    # grid_rf = {'n_estimators': [100], #USE THIS ONE FOR TESTING ONLY
-    #            'max_depth': [5],
-    #            'max_features': [10],
+    # grid_rf = {'n_estimators': [100, 150], #USE THIS ONE FOR TESTING ONLY
+    #            'max_depth': [5, 6],
+    #            'max_features': [10, 5, 1],
     #            'random_state': [42]}
 
     rf_model = RandomForestRegressor()
@@ -291,7 +459,7 @@ for country_data in countries:
     rf_dRMSE = dRMSE(rf_MSE, hist_MSE)
     rf_MAPE = mean_absolute_percentage_error(test_targets_rescaled, rf_pred)
     rf_OOS_R2 = r2_score(test_targets_rescaled, rf_pred)
-    rf_OOS_GW_R2 = GW_R2_score(rf_MSE, hist_MSE)
+    # rf_OOS_GW_R2 = GW_R2_score(rf_MSE, hist_MSE)
 
     # Plot Random Forest target predictions
     rf_pred = rf_pred.flatten()
@@ -329,7 +497,6 @@ for country_data in countries:
     train_factors_rescaled = train_factors_rescaled.reshape((-1, time_steps, train_factors_rescaled.shape[1]))
     test_factors_rescaled = test_factors_rescaled.reshape((-1, time_steps, test_factors_rescaled.shape[1]))
 
-
     ################################################################
     # Simple LSTM Model - was working on previous run, will fix
     ################################################################
@@ -360,7 +527,7 @@ for country_data in countries:
     simple_lstm_dRMSE = dRMSE(simple_lstm_MSE, hist_MSE)
     simple_lstm_MAPE = mean_absolute_percentage_error(test_targets_rescaled, simple_lstm_pred)
     simple_lstm_OOS_R2 = r2_score(test_targets_rescaled, simple_lstm_pred)
-    simple_lstm_OOS_GW_R2 = GW_R2_score(simple_lstm_MSE, hist_MSE)
+    # simple_lstm_OOS_GW_R2 = GW_R2_score(simple_lstm_MSE, hist_MSE)
 
     pred_series_simple_LSTM.plot(label='Predicted')
     actual_rescaled_series.plot(label='Actual')
@@ -373,27 +540,33 @@ for country_data in countries:
     # LSTM Model
     ################################################################
 
+    # train_factors_rescaled = train_factors_rescaled.reshape((-1, time_steps, train_factors_rescaled.shape[1]))
+    # test_factors_rescaled = test_factors_rescaled.reshape((-1, time_steps, test_factors_rescaled.shape[1]))
+
     def build_model(hp):
         model = Sequential()
         # First LSTM layer needs to specify input_shape
         model.add(Bidirectional(LSTM(
-            units=hp.Int('num_units', min_value=32, max_value=128, step=16),
+            units=hp.Int('num_units', min_value=32, max_value=128, default=32),
             activation=hp.Choice('activation', ['relu', 'tanh', 'linear', 'selu', 'elu']),
-            recurrent_dropout=hp.Float('recurrent_dropout', min_value=0.0, max_value=0.5, step=0.1),
+            recurrent_dropout=hp.Float('recurrent_dropout', min_value=0.0, max_value=0.5, default=0.2),
             kernel_regularizer=l2(hp.Float('l2', min_value=0.0001, max_value=0.01, sampling='LOG')),
             input_shape=(1, train_factors_rescaled.shape[2]), # Input shape defined for one time step with all features
-            return_sequences=hp.Int('num_rnn_layers', min_value=1, max_value=12) > 1 # Ensures last LSTM layer will not return sequences
+            return_sequences=hp.Int('num_rnn_layers', min_value=1, max_value=12,default=3) > 1 # Ensures last LSTM layer will not return sequences
+            # return_sequences=True
         )))
 
         # Dynamically add more LSTM layers based on the number of RNN layers hyperparameter
+        # num_layers = hp.Int('num_layers')
         for i in range(hp.Int('num_rnn_layers', min_value=1, max_value=12, default=3) - 1):
             model.add(LSTM(
-                units=hp.Int('num_units', min_value=32, max_value=128, step=16),
+                units=hp.Int('num_units', min_value=32, max_value=128, default=32),
                 activation=hp.Choice('activation', ['relu', 'tanh', 'linear', 'selu', 'elu']),
-                recurrent_dropout=hp.Float('recurrent_dropout', min_value=0.0, max_value=0.5, step=0.1),
+                recurrent_dropout=hp.Float('recurrent_dropout', min_value=0.0, max_value=0.5, default=0.2),
                 return_sequences=i < hp.Int('num_rnn_layers', min_value=1, max_value=12, default=3) - 2
+                # return_sequences=(i<num_layers - 2)
             ))
-            model.add(BatchNormalization())
+            # model.add(BatchNormalization())
         model.add(Dense(1, activation='linear'))
         model.compile(
             optimizer=keras.optimizers.Adam(
@@ -414,7 +587,7 @@ for country_data in countries:
                                               )
     bayesian_opt_tuner.search(train_factors_rescaled, train_targets_rescaled,
                               epochs=n_epochs,
-                              batch_size = batch_size,
+                              # batch_size = batch_size,
                               validation_data = (test_factors_rescaled, test_targets_rescaled),
                               validation_split = 0.2,
                               verbose=1)
@@ -430,7 +603,7 @@ for country_data in countries:
     lstm_dRMSE = dRMSE(lstm_MSE, hist_MSE)
     lstm_MAPE = mean_absolute_percentage_error(test_targets_rescaled, lstm_pred)
     lstm_OOS_R2 = r2_score(test_targets_rescaled, lstm_pred)
-    lstm_OOS_GW_R2 = GW_R2_score(lstm_MSE, hist_MSE)
+    # lstm_OOS_GW_R2 = GW_R2_score(lstm_MSE, hist_MSE)
 
     # Plot LSTM target predictions
     lstm_pred = lstm_pred.flatten()
@@ -455,7 +628,7 @@ for country_data in countries:
     print(f'dRMSE: {OLS_dRMSE}')
     print(f'MAPE: {OLS_MAPE}')
     print(f'OOS R2: {OLS_OOS_R2}')
-    print(f'OOS GW R2: {OLS_OOS_GW_R2}')
+    # print(f'OOS GW R2: {OLS_OOS_GW_R2}')
     print('')
 
     # Ridge
@@ -465,7 +638,7 @@ for country_data in countries:
     print(f'dRMSE: {ridge_dRMSE}')
     print(f'MAPE: {ridge_MAPE}')
     print(f'OOS R2: {ridge_OOS_R2}')
-    print(f'OOS GW R2: {ridge_OOS_GW_R2}')
+    # print(f'OOS GW R2: {ridge_OOS_GW_R2}')
     print('')
 
     # Lasso
@@ -475,7 +648,7 @@ for country_data in countries:
     print(f'dRMSE: {lasso_dRMSE}')
     print(f'MAPE: {lasso_MAPE}')
     print(f'OOS R2: {lasso_OOS_R2}')
-    print(f'OOS GW R2: {lasso_OOS_GW_R2}')
+    # print(f'OOS GW R2: {lasso_OOS_GW_R2}')
     print('')
 
     # KNN
@@ -485,7 +658,7 @@ for country_data in countries:
     print(f'dRMSE: {knn_dRMSE}')
     print(f'MAPE: {knn_MAPE}')
     print(f'OOS R2: {knn_OOS_R2}')
-    print(f'OOS GW R2: {knn_OOS_GW_R2}')
+    # print(f'OOS GW R2: {knn_OOS_GW_R2}')
     print('')
 
     # Random Forest
@@ -495,7 +668,7 @@ for country_data in countries:
     print(f'dRMSE: {rf_dRMSE}')
     print(f'MAPE: {rf_MAPE}')
     print(f'OOS R2: {rf_OOS_R2}')
-    print(f'OOS GW R2: {rf_OOS_GW_R2}')
+    # print(f'OOS GW R2: {rf_OOS_GW_R2}')
     print('')
 
     # LSTM
@@ -505,7 +678,7 @@ for country_data in countries:
     print(f'dRMSE: {lstm_dRMSE}')
     print(f'MAPE: {lstm_MAPE}')
     print(f'OOS R2: {lstm_OOS_R2}')
-    print(f'OOS GW R2: {lstm_OOS_GW_R2}')
+    # print(f'OOS GW R2: {lstm_OOS_GW_R2}')
     print('')
 
     # Simple LSTM
@@ -515,7 +688,7 @@ for country_data in countries:
     print(f'dRMSE: {simple_lstm_dRMSE}')
     print(f'MAPE: {simple_lstm_MAPE}')
     print(f'OOS R2: {simple_lstm_OOS_R2}')
-    print(f'OOS GW R2: {simple_lstm_OOS_GW_R2}')
+    # print(f'OOS GW R2: {simple_lstm_OOS_GW_R2}')
     print('')
 
     #######################################################
@@ -533,6 +706,22 @@ for country_data in countries:
         portfolio = pd.DataFrame(index=test_targets.index)
         portfolio['IndexRet'] = index_data.loc[test_targets.index, 'UK_IndexRet']
         portfolio['RfreeRet'] = index_data.loc[test_targets.index, 'UK_RfreeRet']
+    elif country_data.equals(AU_data):
+        portfolio = pd.DataFrame(index=test_targets.index)
+        portfolio['IndexRet'] = index_data_AU.loc[test_targets.index, 'AU_IndexRet']
+        portfolio['RfreeRet'] = index_data_AU.loc[test_targets.index, 'AU_RfreeRet']
+    elif country_data.equals(DE_data):
+        portfolio = pd.DataFrame(index=test_targets.index)
+        portfolio['IndexRet'] = index_data.loc[test_targets.index, 'DE_IndexRet']
+        portfolio['RfreeRet'] = index_data.loc[test_targets.index, 'DE_RfreeRet']
+    elif country_data.equals(FR_data):
+        portfolio = pd.DataFrame(index=test_targets.index)
+        portfolio['IndexRet'] = index_data.loc[test_targets.index, 'FR_IndexRet']
+        portfolio['RfreeRet'] = index_data.loc[test_targets.index, 'FR_RfreeRet']
+    elif country_data.equals(JP_data):
+        portfolio = pd.DataFrame(index=test_targets.index)
+        portfolio['IndexRet'] = index_data_JP.loc[test_targets.index, 'JP_IndexRet']
+        portfolio['RfreeRet'] = index_data_JP.loc[test_targets.index, 'JP_RfreeRet']
     else:
         print('Invalid country input given')
 
@@ -617,6 +806,7 @@ for country_data in countries:
     print(f'Mean Bayesian LSTM Returns: {mean_bLSTM_returns}')
     print(f'Bayesian LSTM Standard Deviation: {std_bLSTM_returns}')
     print(f'Bayesian LSTM Sharpe: {bLSTM_sharpe}')
+    print('')
 
     # Simple LSTM
     # Since scaled, retransform predicted values to original scale
@@ -630,421 +820,4 @@ for country_data in countries:
     print(f'Mean Simple LSTM Returns: {mean_sLSTM_returns}')
     print(f'Simple LSTM Standard Deviation: {std_sLSTM_returns}')
     print(f'Simple LSTM Sharpe: {sLSTM_sharpe}')
-
-
-
-# Code dump
-# Test if factors/targets split properly
-    # print('TRAIN FACTORS')
-    # print(train_factors)
-    # print('TEST FACTORS')
-    # print(test_factors)
-    # print('TRAIN TARGETS')
-    # print(train_targets)
-    # print('TEST TARGETS')
-    # print(test_targets)
-
-# Test if lengths are the same for the hist mean and test targets
-    # print(f'Test target length: {len(test_targets)}')
-    # print(test_targets)
-    # print(f'HM model test length: {len(hist_pred_test)}')
-    # print(hist_pred_test)
-
-# Copy/paste reporting metrics
-#     print('OLS Regression')
-#     print(f'MSE: {}')
-#     print(f'RMSE: {}')
-#     print(f'dRMSE: {}')
-#     print(f'MAPE: {}')
-#     print(f'OOS R2: {}')
-#     print(f'OOS GW R2: {}')
-
-    # print('SHAPE TEST - should match')
-    # print(factors_rescaled.shape)
-    # print(targets_rescaled.shape)
-    # print('DATA TEST')
-    # print(factors_rescaled)
-    # print(targets_rescaled)
-
-    # from keras.models import Sequential
-    # from keras.layers import Dense
-    # import numpy as np
-    #
-    # # Create a simple model
-    # model = Sequential([Dense(2, input_dim=3)])
-    # model.compile(optimizer='adam', loss='mse')
-    #
-    # # Dummy data
-    # X = np.random.rand(10, 3)
-    # y = np.random.rand(10, 2)
-    #
-    # # Fit model
-    # model.fit(X, y, epochs=1, verbose=0)
-    #
-    # # Try saving the weights
-    # try:
-    #     model.save_weights('simple_model_weights.weights.h5')
-    #     print("Weights saved successfully.")
-    # except Exception as e:
-    #     print("Failed to save weights:", str(e))
-
-    # time_steps = 1
-    # factors_rescaled = factors_rescaled.reshape((factors_rescaled.shape[0], time_steps, factors_rescaled.shape[1]))
-    # train_factors_rescaled = train_factors_rescaled.reshape(
-    #     (train_factors_rescaled.shape[0], time_steps, train_factors_rescaled.shape[1]))
-
-    # print("Shape of train_factors_rescaled:", train_factors_rescaled.shape)
-
-
-    # def build_LSTM_model(hp):
-    #     model = Sequential()
-    #     model.add(LSTM(units=hp.Int('units', min_value=32, max_value=512, step=32),
-    #                    input_shape=(1,22),
-    #                    return_sequences=True))
-    #     model.add(Dropout(rate=hp.Float('dropout_1', min_value=0.0, max_value=0.5, step=0.1)))
-    #     model.add(LSTM(units=hp.Int('units', min_value=32, max_value=512, step=32),
-    #                    return_sequences=False))
-    #     model.add(Dropout(rate=hp.Float('dropout_2', min_value=0.0, max_value=0.5, step=0.1)))
-    #     model.add(Dense(1))
-    #     model.compile(optimizer='adam', loss='mse')
-    #
-    #     return model
-    # def build_model(hp):
-    #     model = Sequential([
-    #         LSTM(hp.Int('units', min_value=32, max_value=256, step=32),
-    #                           input_shape=(train_factors_rescaled.shape[1], train_factors_rescaled.shape[2])),
-    #         Dropout(hp.Float('dropout', 0, 0.5, step=0.1)),
-    #         Dense(1)
-    #     ])
-    #     model.compile(optimizer='adam', loss='mean_squared_error')
-    #     if model is None:
-    #         raise ValueError("Model construction failed")
-    #     return model
-    #
-    # hp = HyperParameters()
-    # hp.Fixed('units', value=64)
-    # hp.Fixed('dropout', value=0.2)
-    #
-    # # Testing model save functionality outside of tuning
-    # model = build_model(hp)
-    # model.summary()
-    #
-    # history = model.fit(train_factors_rescaled,
-    #                     train_targets_rescaled,
-    #                     epochs=10,
-    #                     batch_size=11,
-    #                     validation_split=0.2,
-    #                     verbose=1)
-    # model.save_weights('model_weights.weights.h5')
-    # print(history.history)
-    # tuner = RandomSearch(
-    #     build_model,
-    #     objective='val_loss',
-    #     max_trials=10,
-    #     executions_per_trial=1,
-    #     directory='C:/Users/dansz/PycharmProjects/Thesis/lstm_tuner',
-    #     project_name='lstm_optim',
-    #     overwrite=True
-    # )
-    # #
-    # tuner.search(train_factors_rescaled, train_targets_rescaled, epochs=10, batch_size=11, validation_split=0.2, verbose=1)
-    #
-    # best_model = tuner.get_best_models(num_models=1)[0]
-
-    # def build_model(hp): #THIS RUNS
-    #     model = Sequential()
-    #     model.add(Dense(
-    #         hp.Choice('units', [8,16,32]),
-    #         activation='relu'))
-    #     model.add(Dense(1, activation='relu'))
-    #     model.compile(loss='mse')
-    #     return model
-    #
-    # tuner = keras_tuner.RandomSearch(
-    #     build_model,
-    #     objective='val_loss',
-    #     max_trials=5
-    # )
-    # tuner.search(train_factors_rescaled, train_targets_rescaled, epochs=5, validation_data=(test_factors_rescaled, test_targets_rescaled))
-    # best_model = tuner.get_best_models()[0]
-
-    # def build_model(hp):
-    #     model = Sequential()
-    #     model.add(Bidirectional(
-    #         LSTM(
-    #             hp.Choice('units', [32, 64, 128]),
-    #             input_shape=(1, train_factors_rescaled.shape[2]),
-    #             activation='tanh',
-    #             return_sequences=True,
-    #             kernel_regularizer=l2(0.01)
-    #         )
-    #     ))
-    #     model.add(Dropout(hp.Float('dropout', min_value=0.1, max_value=0.5, step=0.1)))
-    #     model.add(LSTM(
-    #         hp.Choice('units', [32, 64, 128]),
-    #         return_sequences=False,
-    #         activation='tanh',
-    #         kernel_regularizer=l2(0.01)
-    #     ))
-    #     model.add(Dense(1, activation='relu'))
-    #     model.compile(
-    #         optimizer=Adam(hp.Float('learning_rate', min_value=1e-4, max_value=1e-2, sampling='LOG')),
-    #         loss='mse'
-    #     )
-    #     return model
-    #
-    # tuner = keras_tuner.RandomSearch(
-    #     build_model,
-    #     objective='val_loss',
-    #     max_trials=50,
-    #     directory='C:/Users/dansz/PycharmProjects/Thesis/lstm_tuner',
-    #     project_name='lstm_optim',
-    #     overwrite=True
-    # )
-    # tuner.search(train_factors_rescaled,
-    #              train_targets_rescaled,
-    #              epochs=50,
-    #              validation_data=(test_factors_rescaled, test_targets_rescaled))
-    # best_model = tuner.get_best_models(num_models=1)[0]
-    # lstm_pred = best_model.predict(test_factors_rescaled)
-    # def build_model(hp):
-    #     model = Sequential()
-    #     # Start with a Bidirectional LSTM layer
-    #     model.add(Bidirectional(
-    #         LSTM(
-    #             units=hp.Int('units_lstm1', min_value=32, max_value=128, step=32),
-    #             input_shape=(1, train_factors_rescaled.shape[2]),
-    #             activation='tanh',
-    #             return_sequences=True,  # Always true when followed by another LSTM layer
-    #             kernel_regularizer=l2(hp.Float('l2_lstm1', min_value=0.01, max_value=0.1, step=0.01))
-    #         )
-    #     ))
-    #
-    #     # Adding more LSTM layers
-    #     for i in range(hp.Int('num_lstm_layers', 1, 8)):  # Tuning the number of additional LSTM layers from 1 to 3
-    #         model.add(LSTM(
-    #             units=hp.Int('units_lstm' + str(i + 2), min_value=32, max_value=128, step=32),
-    #             activation='tanh',
-    #             return_sequences=(i < hp.Int('num_lstm_layers', 1, 3) - 1),
-    #             kernel_regularizer=l2(hp.Float('l2_lstm' + str(i + 2), min_value=0.01, max_value=0.1, step=0.01))
-    #         ))
-    #
-    #     model.add(Dropout(hp.Float('dropout', min_value=0.1, max_value=0.5, step=0.1)))
-    #     model.add(Dense(1, activation='relu'))
-    #     model.compile(
-    #         optimizer='adam',
-    #         loss='mse'
-    #     )
-    #     return model
-    #
-    #
-    # tuner = keras_tuner.RandomSearch(
-    #     build_model,
-    #     objective='val_loss',
-    #     max_trials=40,
-    #     executions_per_trial=3,  # Increasing this for more robust results
-    #     directory='C:/Users/dansz/PycharmProjects/Thesis/lstm_tuner',
-    #     project_name='lstm_optim_advanced',
-    #     overwrite=True
-    # )
-    #
-    # def run_tuner_with_batch_size():
-    #     # Running the tuner with different batch sizes
-    #     best_score = float('inf')
-    #     best_model = None
-    #     for batch_size in [10, 20, 30, 40]:  # You can customize these values
-    #         tuner.search(train_factors_rescaled, train_targets_rescaled,
-    #                      epochs=50,
-    #                      batch_size=batch_size,
-    #                      validation_data=(test_factors_rescaled, test_targets_rescaled))
-    #         best_trial = tuner.oracle.get_best_trials(num_trials=1)[0]
-    #         if best_trial.score < best_score:
-    #             best_score = best_trial.score
-    #             best_model = tuner.get_best_models(num_models=1)[0]
-    #             best_batch_size = batch_size
-    #
-    #     return best_model, best_batch_size
-    #
-    # best_model, best_batch_size = run_tuner_with_batch_size()
-    # lstm_pred = best_model.predict(test_factors_rescaled)
-
-
-    # def build_model(hp):
-    #     model = Sequential()
-    #     # Start with a Bidirectional LSTM layer to process data forward and backward; capture patterns from both directions in time series data
-    #     model.add(Bidirectional(
-    #         LSTM(
-    #             # Dynamically set number of neurons based on tuner result
-    #             units=hp.Int('units_lstm1', min_value=32, max_value=128, step=32),
-    #             input_shape=(1, train_factors_rescaled_normalized.shape[2]),
-    #             activation='tanh', # tanh activation function for to capture nonlinear relationships
-    #             return_sequences=hp.Int('num_lstm_layers', 1, 8) > 1,
-    #             kernel_regularizer=l2(hp.Float('l2_lstm1', min_value=0.01, max_value=0.1, step=0.01)) # penalty on layer weights to prevent overfitting
-    #         )
-    #     ))
-    #
-    #     # Adding more LSTM layers based on tuner
-    #     for i in range(hp.Int('num_lstm_layers', 1, 8)):  # Tuning the number of additional LSTM layers from 1 to 8
-    #         model.add(LSTM(
-    #             units=hp.Int('units_lstm' + str(i + 1), min_value=32, max_value=128, step=32),
-    #             activation='tanh',
-    #             return_sequences= (i < hp.Int('num_lstm_layers', 1, 8) - 1),
-    #             kernel_regularizer=l2(hp.Float('l2_lstm' + str(i + 1), min_value=0.01, max_value=0.1, step=0.01))
-    #         ))
-    #
-    #     model.add(Dropout(hp.Float('dropout', min_value=0.1, max_value=0.5, step=0.1)))
-    #     model.add(Dense(1, activation='linear'))
-    #     model.compile(
-    #         optimizer='adam',
-    #         loss='mse'
-    #     )
-    #     return model
-    #
-    # # Callbacks for early stopping and learning rate reduction
-    # early_stopping = EarlyStopping(monitor='val_loss', patience=15, restore_best_weights=True)
-    # reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10, min_lr=0.001)
-    #
-    # tuner = keras_tuner.RandomSearch(
-    #     build_model,
-    #     objective='val_loss',
-    #     max_trials=max_trials,
-    #     executions_per_trial=executions_per_trial,  # Increasing this for more robust results
-    #     directory='C:/Users/dansz/PycharmProjects/Thesis/lstm_tuner',
-    #     project_name='lstm_optim_advanced',
-    #     overwrite=True
-    # )
-    #
-    # def run_tuner_with_batch_size():
-    #     # Running the tuner with different batch sizes
-    #     best_score = float('inf')
-    #     best_model = None
-    #     best_batch_size = None
-    #     for batch_size in [10]:  # You can customize these values
-    #         tuner.search(train_factors_rescaled_normalized, train_targets_rescaled_normalized,
-    #                      epochs=n_epochs,
-    #                      batch_size=batch_size,
-    #                      validation_data=(test_factors_rescaled_normalized, test_targets_rescaled_normalized),
-    #                      callbacks=[early_stopping, reduce_lr])
-    #         best_trial = tuner.oracle.get_best_trials(num_trials=1)[0]
-    #         if best_trial.score < best_score:
-    #             best_score = best_trial.score
-    #             best_model = tuner.get_best_models(num_models=1)[0]
-    #             best_batch_size = batch_size
-    #
-    #     return best_model, best_batch_size
-    #
-    # best_model, best_batch_size = run_tuner_with_batch_size()
-    # lstm_pred = best_model.predict(test_factors_rescaled_normalized)
-
-    # ################################################################
-    # # LSTM Model
-    # ################################################################
-    # print('Generating LSTM models...')
-    #
-    # print("Train factors shape:", train_factors_rescaled.shape)
-    # print("Test factors shape:", test_factors_rescaled.shape)
-    #
-    # # train_factors_rescaled = train_factors_rescaled.reshape(
-    # #     (train_factors_rescaled.shape[0], 1, train_factors_rescaled.shape[1]))
-    # # test_factors_rescaled = test_factors_rescaled.reshape(
-    # #     (test_factors_rescaled.shape[0], 1, test_factors_rescaled.shape[1]))
-    #
-    # print("Reshaped Train factors shape:", train_factors_rescaled.shape)
-    # print("Reshaped Test factors shape:", test_factors_rescaled.shape)
-    #
-    # time_steps = 1  # assuming each sample is treated as a single time step sequence.
-    # max_trials = 10
-    # executions_per_trial = 2
-    # n_epochs = 10
-    #
-    # train_factors_rescaled = train_factors_rescaled.reshape((-1, time_steps, train_factors_rescaled.shape[1]))
-    # test_factors_rescaled = test_factors_rescaled.reshape((-1, time_steps, test_factors_rescaled.shape[1]))
-    #
-    #
-    # def build_model(hp):
-    #     model = Sequential()
-    #     # Start with a Bidirectional LSTM layer to process data forward and backward; capture patterns from both directions in time series data
-    #     model.add(Bidirectional(
-    #         LSTM(
-    #             # Dynamically set number of neurons based on tuner result
-    #             units=hp.Int('units_lstm1', min_value=32, max_value=128, step=32),
-    #             input_shape=(1, train_factors_rescaled.shape[2]),
-    #             activation='tanh', # tanh activation function for to capture nonlinear relationships
-    #             return_sequences=hp.Int('num_lstm_layers', 1, 8) > 1,
-    #             kernel_regularizer=l2(hp.Float('l2_lstm1', min_value=0.01, max_value=0.1, step=0.01)) # penalty on layer weights to prevent overfitting
-    #         )
-    #     ))
-    #
-    #     # Adding more LSTM layers based on tuner
-    #     for i in range(hp.Int('num_lstm_layers', 1, 8)):  # Tuning the number of additional LSTM layers from 1 to 8
-    #         model.add(LSTM(
-    #             units=hp.Int('units_lstm' + str(i + 1), min_value=32, max_value=128, step=32),
-    #             activation='tanh',
-    #             return_sequences= (i < hp.Int('num_lstm_layers', 1, 8) - 1),
-    #             kernel_regularizer=l2(hp.Float('l2_lstm' + str(i + 1), min_value=0.01, max_value=0.1, step=0.01))
-    #         ))
-    #
-    #     model.add(Dropout(hp.Float('dropout', min_value=0.1, max_value=0.5, step=0.1)))
-    #     model.add(Dense(1, activation='relu'))
-    #     model.compile(
-    #         optimizer='adam',
-    #         loss='mse'
-    #     )
-    #     return model
-    #
-    # # Callbacks for early stopping and learning rate reduction
-    # early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
-    # reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=5, min_lr=0.001)
-    #
-    # tuner = keras_tuner.RandomSearch(
-    #     build_model,
-    #     objective='val_loss',
-    #     max_trials=max_trials,
-    #     executions_per_trial=executions_per_trial,  # Increasing this for more robust results
-    #     directory='C:/Users/dansz/PycharmProjects/Thesis/lstm_tuner',
-    #     project_name='lstm_optim_advanced',
-    #     overwrite=True
-    # )
-    #
-    # def run_tuner_with_batch_size():
-    #     # Running the tuner with different batch sizes
-    #     best_score = float('inf')
-    #     best_model = None
-    #     best_batch_size = None
-    #     for batch_size in [10, 20, 30, 40]:  # You can customize these values
-    #         tuner.search(train_factors_rescaled, train_targets_rescaled,
-    #                      epochs=n_epochs,
-    #                      batch_size=batch_size,
-    #                      validation_data=(test_factors_rescaled, test_targets_rescaled),
-    #                      callbacks=[early_stopping, reduce_lr])
-    #         best_trial = tuner.oracle.get_best_trials(num_trials=1)[0]
-    #         if best_trial.score < best_score:
-    #             best_score = best_trial.score
-    #             best_model = tuner.get_best_models(num_models=1)[0]
-    #             best_batch_size = batch_size
-    #
-    #     return best_model, best_batch_size
-    #
-    # best_model, best_batch_size = run_tuner_with_batch_size()
-    # lstm_pred = best_model.predict(test_factors_rescaled)
-    #
-    # # LSTM Metrics
-    # lstm_MSE = mean_squared_error(test_targets_rescaled, lstm_pred)
-    # lstm_RMSE = root_mean_squared_error(test_targets_rescaled, lstm_pred)
-    # lstm_dRMSE = dRMSE(lstm_MSE, hist_MSE)
-    # lstm_MAPE = mean_absolute_percentage_error(test_targets_rescaled, lstm_pred)
-    # lstm_OOS_R2 = r2_score(test_targets_rescaled, lstm_pred)
-    # lstm_OOS_GW_R2 = GW_R2_score(lstm_MSE, hist_MSE)
-    #
-    # # Plot Random Forest target predictions
-    # lstm_pred = lstm_pred.flatten()
-    #
-    # pred_series_LSTM = pd.Series(lstm_pred, index=test_targets.index)
-    # actual_rescaled_series = pd.Series(test_targets_rescaled.flatten(), index=test_targets.index)
-    #
-    # pred_series_LSTM.plot(label='Predicted')
-    # actual_rescaled_series.plot(label='Actual')
-    # plt.ylabel('Predicted Excess Return')
-    # plt.title('Optimized LSTM Prediction')
-    # plt.legend()
-    # plt.show()
+    print('')
