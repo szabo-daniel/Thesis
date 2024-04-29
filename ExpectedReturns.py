@@ -189,6 +189,12 @@ print('')
 
 n_iterations = 5
 test_size = 0.2
+# LSTM params
+time_steps = 1  # assuming each sample is treated as a single time step sequence.
+max_trials = 3
+executions_per_trial = 2
+n_epochs = 50
+batch_size = 10
 
 mm_factor_scaler = MinMaxScaler(feature_range=(0, 1))
 mm_target_scaler = MinMaxScaler(feature_range=(0, 1))
@@ -196,7 +202,8 @@ std_factor_scaler = StandardScaler()
 std_target_scaler = StandardScaler()
 
 # US_data = US_data[1:-1]
-countries = [US_data, UK_data, AU_data, DE_data, FR_data, JP_data]
+# countries = [US_data, UK_data, AU_data, DE_data, FR_data, JP_data]
+countries = [US_data]
 # print(US_data) #good- all values read in properly
 
 # def GW_R2_score(MSE_A, MSE_N):
@@ -279,29 +286,44 @@ for country_data in countries:
 
     hist_MSE = mean_squared_error(test_targets, hist_pred_test) # Used as benchmark for subsequent model evaulation
 
+    # # Model 1 - OLS linear regression model (kitchen sink)
+    # OLS = LinearRegression()
+    # OLS.fit(train_factors, train_targets)
+    # OLS_pred = OLS.predict(test_factors)
+    #
+    # # OLS Metrics
+    # OLS_MSE = mean_squared_error(test_targets, OLS_pred)
+    # OLS_RMSE = root_mean_squared_error(test_targets, OLS_pred)
+    # OLS_dRMSE = dRMSE(OLS_MSE, hist_MSE)
+    # OLS_MAPE = mean_absolute_percentage_error(test_targets, OLS_pred)
+    # OLS_OOS_R2 = r2_score(test_targets, OLS_pred)
+    # # OLS_OOS_GW_R2 = GW_R2_score(OLS_MSE, hist_MSE)
+
     # Model 1 - OLS linear regression model (kitchen sink)
     OLS = LinearRegression()
-    OLS.fit(train_factors, train_targets)
-    OLS_pred = OLS.predict(test_factors)
+    OLS.fit(train_factors_standard, train_targets_standard)
+    OLS_pred = OLS.predict(test_factors_standard)
 
     # OLS Metrics
-    OLS_MSE = mean_squared_error(test_targets, OLS_pred)
-    OLS_RMSE = root_mean_squared_error(test_targets, OLS_pred)
+    OLS_MSE = mean_squared_error(test_targets_standard, OLS_pred)
+    OLS_RMSE = root_mean_squared_error(test_targets_standard, OLS_pred)
     OLS_dRMSE = dRMSE(OLS_MSE, hist_MSE)
-    OLS_MAPE = mean_absolute_percentage_error(test_targets, OLS_pred)
-    OLS_OOS_R2 = r2_score(test_targets, OLS_pred)
+    OLS_MAPE = mean_absolute_percentage_error(test_targets_standard, OLS_pred)
+    OLS_OOS_R2 = r2_score(test_targets_standard, OLS_pred)
     # OLS_OOS_GW_R2 = GW_R2_score(OLS_MSE, hist_MSE)
 
     # Plot OLS target predictions
-    pred_series_OLS = pd.Series(OLS_pred, index=test_targets.index)
-    pred_series_OLS.plot(label = 'Predicted')
-    test_targets.plot(label='Actual')
+    pred_series_OLS = pd.Series(OLS_pred.flatten(), index=test_targets.index)
+    actual_standard_series = pd.Series(test_targets_standard.flatten(), index=test_targets.index)
+
+    pred_series_OLS.plot(label='Predicted')
+    actual_standard_series.plot(label='Actual')
     plt.ylabel('Predicted Excess Return')
     plt.title('OLS Prediction')
     plt.legend()
     plt.show()
 
-    print('Historical mean model complete')
+    print('OLS model complete')
     print('')
     ################################################################
     # Model 2 - Ridge Regression
@@ -488,11 +510,7 @@ for country_data in countries:
     print("Reshaped Train factors shape:", train_factors_rescaled.shape)
     print("Reshaped Test factors shape:", test_factors_rescaled.shape)
 
-    time_steps = 1  # assuming each sample is treated as a single time step sequence.
-    max_trials = 20
-    executions_per_trial = 2
-    n_epochs = 50
-    batch_size = 10
+
 
     train_factors_rescaled = train_factors_rescaled.reshape((-1, time_steps, train_factors_rescaled.shape[1]))
     test_factors_rescaled = test_factors_rescaled.reshape((-1, time_steps, test_factors_rescaled.shape[1]))
