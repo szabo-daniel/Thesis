@@ -18,6 +18,7 @@ from keras.regularizers import l2
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
 from keras.optimizers import Adam
 from keras_tuner import RandomSearch, HyperParameters, BayesianOptimization
+import statsmodels.api as sm
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -87,6 +88,7 @@ US_data['default_return_spread'] = (GW_df['corpr'] - GW_df['ltr']).values
 US_data['book_to_market'] = GW_df['b/m']
 US_data['stock_variance'] = GW_df['svar']
 US_data['investment_to_capital'] = GW_df['ik']
+US_data = US_data.drop(columns=['brent_crude'])
 
 print('US DATA')
 print(US_data)
@@ -179,7 +181,7 @@ n_iterations = 5
 test_size = 0.2
 # LSTM params
 time_steps = 1  # assuming each sample is treated as a single time step sequence.
-max_trials = 3
+max_trials = 20
 executions_per_trial = 2
 n_epochs = 50
 batch_size = 10
@@ -190,15 +192,15 @@ std_factor_scaler = StandardScaler()
 std_target_scaler = StandardScaler()
 
 # US_data = US_data[1:-1]
-countries = [US_data, UK_data, AU_data, DE_data, FR_data, JP_data]
-# countries = [US_data]
+# countries = [US_data, UK_data, AU_data, DE_data, FR_data, JP_data]
+countries = [US_data, UK_data]
 # print(US_data) #good- all values read in properly
 
-# def GW_R2_score(MSE_A, MSE_N):
-#     # MSE_A is the mean squared error of the test model
-#     # MSE_N is the mean squared error of the historical mean model
-#     R2 = 1 - MSE_A / MSE_N
-#     return R2
+def GW_R2_score(MSE_A, MSE_N):
+    # MSE_A is the mean squared error of the test model
+    # MSE_N is the mean squared error of the historical mean model
+    R2 = 1 - MSE_A / MSE_N
+    return R2
 
 def dRMSE(MSE_A, MSE_N):
     dRMSE = np.mean(MSE_N) - np.sqrt(MSE_A)
@@ -247,6 +249,12 @@ for country_data in countries:
     train_factors_standard, test_factors_standard, train_targets_standard, test_targets_standard = train_test_split(factors_standard, targets_standard, test_size=test_size, shuffle=False)
     train_factors_rescaled, test_factors_rescaled, train_targets_rescaled, test_targets_rescaled = train_test_split(factors_rescaled, targets_rescaled, test_size=test_size, shuffle=False)
 
+    #Note: Comment this out if not needed:
+    train_factors_standard_rescaled = scale(train_factors_rescaled)
+    train_targets_standard_rescaled = scale(train_targets_rescaled)
+    test_factors_standard_rescaled = scale(test_factors_rescaled)
+    test_targets_standard_rescaled = scale(test_targets_rescaled)
+
     # Plot correlations of factors
     sb.heatmap(factors.corr(), annot=True, cbar=False)
     plt.title('Correlation Matrix - All Factors')
@@ -274,22 +282,38 @@ for country_data in countries:
 
     hist_MSE = mean_squared_error(test_targets, hist_pred_test) # Used as benchmark for subsequent model evaulation
 
+    # # Model 1 - OLS linear regression model (kitchen sink)
+    # OLS = LinearRegression()
+    # OLS.fit(train_factors_standard, train_targets_standard)
+    # OLS_pred = OLS.predict(test_factors_standard)
+    #
+    # # OLS Metrics
+    # OLS_MSE = mean_squared_error(test_targets_standard, OLS_pred)
+    # OLS_RMSE = root_mean_squared_error(test_targets_standard, OLS_pred)
+    # OLS_dRMSE = dRMSE(OLS_MSE, hist_MSE)
+    # OLS_MAPE = mean_absolute_percentage_error(test_targets_standard, OLS_pred)
+    # OLS_OOS_R2 = r2_score(test_targets_standard, OLS_pred)
+    # # OLS_OOS_GW_R2 = GW_R2_score(OLS_MSE, hist_MSE)
+
     # Model 1 - OLS linear regression model (kitchen sink)
     OLS = LinearRegression()
-    OLS.fit(train_factors_standard, train_targets_standard)
-    OLS_pred = OLS.predict(test_factors_standard)
+    OLS.fit(train_factors, train_targets)
+    OLS_pred = OLS.predict(test_factors)
+
+    print(sm.OLS(train_targets, train_factors).fit().summary())
 
     # OLS Metrics
-    OLS_MSE = mean_squared_error(test_targets_standard, OLS_pred)
-    OLS_RMSE = root_mean_squared_error(test_targets_standard, OLS_pred)
+    OLS_MSE = mean_squared_error(test_targets, OLS_pred)
+    OLS_RMSE = root_mean_squared_error(test_targets, OLS_pred)
     OLS_dRMSE = dRMSE(OLS_MSE, hist_MSE)
-    OLS_MAPE = mean_absolute_percentage_error(test_targets_standard, OLS_pred)
-    OLS_OOS_R2 = r2_score(test_targets_standard, OLS_pred)
-    # OLS_OOS_GW_R2 = GW_R2_score(OLS_MSE, hist_MSE)
+    OLS_MAPE = mean_absolute_percentage_error(test_targets, OLS_pred)
+    OLS_OOS_R2 = r2_score(test_targets, OLS_pred)
+    OLS_OOS_GW_R2 = GW_R2_score(OLS_MSE, hist_MSE)
 
     # Plot OLS target predictions
     pred_series_OLS = pd.Series(OLS_pred.flatten(), index=test_targets.index)
-    actual_standard_series = pd.Series(test_targets_standard.flatten(), index=test_targets.index)
+    # actual_standard_series = pd.Series(test_targets.flatten(), index=test_targets.index)
+    actual_standard_series = pd.Series(test_targets, index=test_targets.index)
 
     pred_series_OLS.plot(label='Predicted')
     actual_standard_series.plot(label='Actual')
@@ -315,7 +339,7 @@ for country_data in countries:
     ridge_dRMSE = dRMSE(ridge_MSE, hist_MSE)
     ridge_MAPE = mean_absolute_percentage_error(test_targets_standard, ridge_pred)
     ridge_OOS_R2 = r2_score(test_targets_standard, ridge_pred)
-    # ridge_OOS_GW_R2 = GW_R2_score(ridge_MSE, hist_MSE)
+    ridge_OOS_GW_R2 = GW_R2_score(ridge_MSE, hist_MSE)
 
     # Plot Ridge target predictions
     ridge_pred = ridge_pred.flatten()
@@ -347,7 +371,7 @@ for country_data in countries:
     lasso_dRMSE = dRMSE(lasso_MSE, hist_MSE)
     lasso_MAPE = mean_absolute_percentage_error(test_targets_standard, lasso_pred)
     lasso_OOS_R2 = r2_score(test_targets_standard, lasso_pred)
-    # lasso_OOS_GW_R2 = GW_R2_score(lasso_MSE, hist_MSE)
+    lasso_OOS_GW_R2 = GW_R2_score(lasso_MSE, hist_MSE)
 
     # Plot Lasso target predictions
     lasso_pred = lasso_pred.flatten()
@@ -364,6 +388,7 @@ for country_data in countries:
 
     print('Lasso regression model complete')
     print('')
+
     ################################################################
     # KNN Model (N-nearest neighbors optimized)
     ################################################################
@@ -418,7 +443,7 @@ for country_data in countries:
     # Random forest (hyperparameter-optimized)
     ################################################################
     print('Generating random forest model...')
-    factor_count = int(len(factors.columns)) # Should be 22 in total
+    factor_count = int(len(factors.columns))  # Should be 22 in total
     test_scores_rf = []
 
     max_factors_list = list(range(factor_count, 0, -1))
@@ -485,10 +510,9 @@ for country_data in countries:
     print("Reshaped Train factors shape:", train_factors_rescaled.shape)
     print("Reshaped Test factors shape:", test_factors_rescaled.shape)
 
-
-
     train_factors_rescaled = train_factors_rescaled.reshape((-1, time_steps, train_factors_rescaled.shape[1]))
     test_factors_rescaled = test_factors_rescaled.reshape((-1, time_steps, test_factors_rescaled.shape[1]))
+
 
     ################################################################
     # Simple LSTM Model - was working on previous run, will fix
@@ -496,9 +520,11 @@ for country_data in countries:
     def build_simple_model():
         model = Sequential()
         model.add(LSTM(50, input_shape=(1, train_factors_rescaled.shape[2])))
-        model.add(Dense(1, activation='linear'))
+        model.add(Dropout(0.2))
+        model.add(Dense(1, activation='relu'))
         model.compile(optimizer='adam', loss='mse')
         return model
+
 
     simple_lstm_model = build_simple_model()
     simple_lstm_model.fit(train_factors_rescaled, train_targets_rescaled, epochs=100, batch_size=10,
@@ -529,6 +555,7 @@ for country_data in countries:
     plt.legend()
     plt.show()
 
+
     ################################################################
     # LSTM Model
     ################################################################
@@ -544,8 +571,9 @@ for country_data in countries:
             activation=hp.Choice('activation', ['relu', 'tanh', 'linear', 'selu', 'elu']),
             recurrent_dropout=hp.Float('recurrent_dropout', min_value=0.0, max_value=0.5, default=0.2),
             kernel_regularizer=l2(hp.Float('l2', min_value=0.0001, max_value=0.01, sampling='LOG')),
-            input_shape=(1, train_factors_rescaled.shape[2]), # Input shape defined for one time step with all features
-            return_sequences=hp.Int('num_rnn_layers', min_value=1, max_value=12,default=3) > 1 # Ensures last LSTM layer will not return sequences
+            input_shape=(1, train_factors_rescaled.shape[2]),  # Input shape defined for one time step with all features
+            return_sequences=hp.Int('num_rnn_layers', min_value=1, max_value=12, default=3) > 1
+            # Ensures last LSTM layer will not return sequences
             # return_sequences=True
         )))
 
@@ -570,6 +598,7 @@ for country_data in countries:
         )
         return model
 
+
     bayesian_opt_tuner = BayesianOptimization(build_model,
                                               objective='mse',
                                               max_trials=max_trials,
@@ -581,8 +610,9 @@ for country_data in countries:
     bayesian_opt_tuner.search(train_factors_rescaled, train_targets_rescaled,
                               epochs=n_epochs,
                               # batch_size = batch_size,
-                              validation_data = (test_factors_rescaled, test_targets_rescaled),
-                              validation_split = 0.2,
+                              # shuffle=False,
+                              validation_data=(test_factors_rescaled, test_targets_rescaled),
+                              validation_split=0.2,
                               verbose=1)
 
     bayes_opt_model_best_model = bayesian_opt_tuner.get_best_models(num_models=1)
@@ -734,7 +764,7 @@ for country_data in countries:
     # Ridge
     # Since scaled, retransform predicted values to original scale
     # ridge_pred_origScale = (ridge_pred * std_scaler.scale_) + std_scaler.mean_
-    ridge_pred_origScale = std_target_scaler.inverse_transform(ridge_pred.reshape(-1,1))
+    ridge_pred_origScale = std_target_scaler.inverse_transform(ridge_pred.reshape(-1, 1))
 
     # Calculate metrics
     ridge_returns = np.where(ridge_pred_origScale > 0, portfolio['IndexRet'], portfolio['RfreeRet'])
@@ -749,7 +779,7 @@ for country_data in countries:
     # Lasso
     # Since scaled, retransform predicted values to original scale
     # lasso_pred_origScale = (lasso_pred * std_scaler.scale_) + std_scaler.mean_
-    lasso_pred_origScale = std_target_scaler.inverse_transform(lasso_pred.reshape(-1,1))
+    lasso_pred_origScale = std_target_scaler.inverse_transform(lasso_pred.reshape(-1, 1))
 
     # Calculate metrics
     lasso_returns = np.where(lasso_pred_origScale > 0, portfolio['IndexRet'], portfolio['RfreeRet'])
@@ -763,7 +793,7 @@ for country_data in countries:
 
     # KNN
     # Since scaled, retransform predicted values to original scale
-    knn_pred_origScale = mm_target_scaler.inverse_transform(knn_pred.reshape(-1,1))
+    knn_pred_origScale = mm_target_scaler.inverse_transform(knn_pred.reshape(-1, 1))
 
     # Calculate metrics
     knn_returns = np.where(knn_pred_origScale > 0, portfolio['IndexRet'], portfolio['RfreeRet'])
@@ -777,7 +807,7 @@ for country_data in countries:
 
     # Random Forest
     # Since scaled, retransform predicted values to original scale
-    rf_pred_origScale = mm_target_scaler.inverse_transform(rf_pred.reshape(-1,1))
+    rf_pred_origScale = mm_target_scaler.inverse_transform(rf_pred.reshape(-1, 1))
 
     # Calculate metrics
     rf_returns = np.where(rf_pred_origScale > 0, portfolio['IndexRet'], portfolio['RfreeRet'])
@@ -791,7 +821,7 @@ for country_data in countries:
 
     # Bayesian LSTM
     # Since scaled, retransform predicted values to original scale
-    lstm_pred_origScale = mm_target_scaler.inverse_transform(lstm_pred.reshape(-1,1))
+    lstm_pred_origScale = mm_target_scaler.inverse_transform(lstm_pred.reshape(-1, 1))
 
     # Calculate metrics
     bLSTM_returns = np.where(lstm_pred_origScale > 0, portfolio['IndexRet'], portfolio['RfreeRet'])
@@ -805,7 +835,7 @@ for country_data in countries:
 
     # Simple LSTM
     # Since scaled, retransform predicted values to original scale
-    simple_lstm_pred_origScale = mm_target_scaler.inverse_transform(simple_lstm_pred.reshape(-1,1))
+    simple_lstm_pred_origScale = mm_target_scaler.inverse_transform(simple_lstm_pred.reshape(-1, 1))
 
     # Calculate metrics
     sLSTM_returns = np.where(simple_lstm_pred_origScale > 0, portfolio['IndexRet'], portfolio['RfreeRet'])
