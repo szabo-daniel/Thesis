@@ -193,7 +193,7 @@ std_target_scaler = StandardScaler()
 
 # US_data = US_data[1:-1]
 # countries = [US_data, UK_data, AU_data, DE_data, FR_data, JP_data]
-countries = [US_data, UK_data]
+countries = [US_data]
 # print(US_data) #good- all values read in properly
 
 def GW_R2_score(MSE_A, MSE_N):
@@ -281,19 +281,6 @@ for country_data in countries:
     hist_pred_test = hist_pred_all[-len(test_targets):] # Get test period data for the historical mean model
 
     hist_MSE = mean_squared_error(test_targets, hist_pred_test) # Used as benchmark for subsequent model evaulation
-
-    # # Model 1 - OLS linear regression model (kitchen sink)
-    # OLS = LinearRegression()
-    # OLS.fit(train_factors_standard, train_targets_standard)
-    # OLS_pred = OLS.predict(test_factors_standard)
-    #
-    # # OLS Metrics
-    # OLS_MSE = mean_squared_error(test_targets_standard, OLS_pred)
-    # OLS_RMSE = root_mean_squared_error(test_targets_standard, OLS_pred)
-    # OLS_dRMSE = dRMSE(OLS_MSE, hist_MSE)
-    # OLS_MAPE = mean_absolute_percentage_error(test_targets_standard, OLS_pred)
-    # OLS_OOS_R2 = r2_score(test_targets_standard, OLS_pred)
-    # # OLS_OOS_GW_R2 = GW_R2_score(OLS_MSE, hist_MSE)
 
     # Model 1 - OLS linear regression model (kitchen sink)
     OLS = LinearRegression()
@@ -519,12 +506,11 @@ for country_data in countries:
     ################################################################
     def build_simple_model():
         model = Sequential()
-        model.add(LSTM(50, input_shape=(1, train_factors_rescaled.shape[2])))
+        model.add(LSTM(50, input_shape=(2, train_factors_rescaled.shape[2])))
         model.add(Dropout(0.2))
         model.add(Dense(1, activation='relu'))
         model.compile(optimizer='adam', loss='mse')
         return model
-
 
     simple_lstm_model = build_simple_model()
     simple_lstm_model.fit(train_factors_rescaled, train_targets_rescaled, epochs=100, batch_size=10,
@@ -557,7 +543,7 @@ for country_data in countries:
 
 
     ################################################################
-    # LSTM Model
+    # LSTM Mothen del
     ################################################################
 
     # train_factors_rescaled = train_factors_rescaled.reshape((-1, time_steps, train_factors_rescaled.shape[1]))
@@ -585,7 +571,6 @@ for country_data in countries:
                 activation=hp.Choice('activation', ['relu', 'tanh', 'linear', 'selu', 'elu']),
                 recurrent_dropout=hp.Float('recurrent_dropout', min_value=0.0, max_value=0.5, default=0.2),
                 return_sequences=i < hp.Int('num_rnn_layers', min_value=1, max_value=12, default=3) - 2
-                # return_sequences=(i<num_layers - 2)
             ))
             # model.add(BatchNormalization())
         model.add(Dense(1, activation='linear'))
