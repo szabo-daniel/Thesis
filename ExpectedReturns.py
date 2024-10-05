@@ -11,13 +11,10 @@ from sklearn.linear_model import LinearRegression, Lasso, Ridge
 from sklearn.metrics import root_mean_squared_error, mean_squared_error, r2_score, mean_absolute_percentage_error
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.ensemble import RandomForestRegressor
-import tensorflow as tf
 from keras.models import Sequential
-from keras.layers import Dense, LSTM, Dropout, Bidirectional, BatchNormalization
+from keras.layers import Dense, LSTM, Dropout, Bidirectional
 from keras.regularizers import l2
-from keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
-from keras.optimizers import Adam
-from keras_tuner import RandomSearch, HyperParameters, BayesianOptimization
+from keras_tuner import BayesianOptimization
 import statsmodels.api as sm
 
 import warnings
@@ -191,10 +188,7 @@ mm_target_scaler = MinMaxScaler(feature_range=(0, 1))
 std_factor_scaler = StandardScaler()
 std_target_scaler = StandardScaler()
 
-# US_data = US_data[1:-1]
-# countries = [US_data, UK_data, AU_data, DE_data, FR_data, JP_data]
-countries = [US_data]
-# print(US_data) #good- all values read in properly
+countries = [US_data, UK_data, AU_data, DE_data, FR_data, JP_data]
 
 def GW_R2_score(MSE_A, MSE_N):
     # MSE_A is the mean squared error of the test model
@@ -707,30 +701,58 @@ for country_data in countries:
     # NOTE: Index returns calculated as [P(t) / P(t-1)] - 1 from Excel
     # NOTE: Risk free returns calculated as [Rfree(t) / Rfree(t-1)] - 1 from Excel
 
+    # if country_data.equals(US_data):
+    #     portfolio = pd.DataFrame(index=test_targets.index)
+    #     portfolio['IndexRet'] = GW_df.loc[test_targets.index, 'IndexRet']
+    #     portfolio['RfreeRet'] = GW_df.loc[test_targets.index, 'RfreeRet']
+    # elif country_data.equals(UK_data):
+    #     portfolio = pd.DataFrame(index=test_targets.index)
+    #     portfolio['IndexRet'] = index_data.loc[test_targets.index, 'UK_IndexRet']
+    #     portfolio['RfreeRet'] = index_data.loc[test_targets.index, 'UK_RfreeRet']
+    # elif country_data.equals(AU_data):
+    #     portfolio = pd.DataFrame(index=test_targets.index)
+    #     portfolio['IndexRet'] = index_data_AU.loc[test_targets.index, 'AU_IndexRet']
+    #     portfolio['RfreeRet'] = index_data_AU.loc[test_targets.index, 'AU_RfreeRet']
+    # elif country_data.equals(DE_data):
+    #     portfolio = pd.DataFrame(index=test_targets.index)
+    #     portfolio['IndexRet'] = index_data.loc[test_targets.index, 'DE_IndexRet']
+    #     portfolio['RfreeRet'] = index_data.loc[test_targets.index, 'DE_RfreeRet']
+    # elif country_data.equals(FR_data):
+    #     portfolio = pd.DataFrame(index=test_targets.index)
+    #     portfolio['IndexRet'] = index_data.loc[test_targets.index, 'FR_IndexRet']
+    #     portfolio['RfreeRet'] = index_data.loc[test_targets.index, 'FR_RfreeRet']
+    # elif country_data.equals(JP_data):
+    #     portfolio = pd.DataFrame(index=test_targets.index)
+    #     portfolio['IndexRet'] = index_data_JP.loc[test_targets.index, 'JP_IndexRet']
+    #     portfolio['RfreeRet'] = index_data_JP.loc[test_targets.index, 'JP_RfreeRet']
+    # else:
+    #     print('Invalid country input given')
+
+
     if country_data.equals(US_data):
         portfolio = pd.DataFrame(index=test_targets.index)
         portfolio['IndexRet'] = GW_df.loc[test_targets.index, 'IndexRet']
-        portfolio['RfreeRet'] = GW_df.loc[test_targets.index, 'RfreeRet']
+        portfolio['RfreeRet'] = GW_df.loc[test_targets.index, 'Rfree']
     elif country_data.equals(UK_data):
         portfolio = pd.DataFrame(index=test_targets.index)
         portfolio['IndexRet'] = index_data.loc[test_targets.index, 'UK_IndexRet']
-        portfolio['RfreeRet'] = index_data.loc[test_targets.index, 'UK_RfreeRet']
+        portfolio['RfreeRet'] = index_data.loc[test_targets.index, 'UK_Rfree']
     elif country_data.equals(AU_data):
         portfolio = pd.DataFrame(index=test_targets.index)
         portfolio['IndexRet'] = index_data_AU.loc[test_targets.index, 'AU_IndexRet']
-        portfolio['RfreeRet'] = index_data_AU.loc[test_targets.index, 'AU_RfreeRet']
+        portfolio['RfreeRet'] = index_data_AU.loc[test_targets.index, 'AU_Rfree']
     elif country_data.equals(DE_data):
         portfolio = pd.DataFrame(index=test_targets.index)
         portfolio['IndexRet'] = index_data.loc[test_targets.index, 'DE_IndexRet']
-        portfolio['RfreeRet'] = index_data.loc[test_targets.index, 'DE_RfreeRet']
+        portfolio['RfreeRet'] = index_data.loc[test_targets.index, 'DE_Rfree']
     elif country_data.equals(FR_data):
         portfolio = pd.DataFrame(index=test_targets.index)
         portfolio['IndexRet'] = index_data.loc[test_targets.index, 'FR_IndexRet']
-        portfolio['RfreeRet'] = index_data.loc[test_targets.index, 'FR_RfreeRet']
+        portfolio['RfreeRet'] = index_data.loc[test_targets.index, 'FR_Rfree']
     elif country_data.equals(JP_data):
         portfolio = pd.DataFrame(index=test_targets.index)
         portfolio['IndexRet'] = index_data_JP.loc[test_targets.index, 'JP_IndexRet']
-        portfolio['RfreeRet'] = index_data_JP.loc[test_targets.index, 'JP_RfreeRet']
+        portfolio['RfreeRet'] = index_data_JP.loc[test_targets.index, 'JP_Rfree']
     else:
         print('Invalid country input given')
 
