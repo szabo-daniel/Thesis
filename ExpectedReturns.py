@@ -67,7 +67,6 @@ print(US_factor_list)
 
 US_data = pd.DataFrame(index=GW_df.index)
 US_data['ER'] = GW_df['EqPrem']
-# US_data['ER'] = (np.log(GW_df['Index'] + GW_df['D12']) - np.log(GW_df['Rfree'])).values[1:]
 
 # Read in all factors from list of given factors into one dataframe
 for factor in US_factor_list:
@@ -292,7 +291,6 @@ for country_data in countries:
 
     # Plot OLS target predictions
     pred_series_OLS = pd.Series(OLS_pred.flatten(), index=test_targets.index)
-    # actual_standard_series = pd.Series(test_targets.flatten(), index=test_targets.index)
     actual_standard_series = pd.Series(test_targets, index=test_targets.index)
 
     pred_series_OLS.plot(label='Predicted')
@@ -401,7 +399,6 @@ for country_data in countries:
     knn_dRMSE = dRMSE(knn_MSE, hist_MSE)
     knn_MAPE = mean_absolute_percentage_error(test_targets_rescaled, knn_pred)
     knn_OOS_R2 = r2_score(test_targets_rescaled, knn_pred)
-    # knn_OOS_GW_R2 = GW_R2_score(knn_MSE, hist_MSE)
 
     # Plot KNN target predictions
     knn_pred = knn_pred.flatten()
@@ -432,10 +429,6 @@ for country_data in countries:
                'max_depth': [None, 3, 5, 7, 10, 15, 20, 25, 30],
                'max_features': max_factors_list,
                'random_state': [42]}
-    # grid_rf = {'n_estimators': [100, 150], #USE THIS ONE FOR TESTING ONLY
-    #            'max_depth': [5, 6],
-    #            'max_features': [10, 5, 1],
-    #            'random_state': [42]}
 
     rf_model = RandomForestRegressor()
 
@@ -461,7 +454,6 @@ for country_data in countries:
     rf_dRMSE = dRMSE(rf_MSE, hist_MSE)
     rf_MAPE = mean_absolute_percentage_error(test_targets_rescaled, rf_pred)
     rf_OOS_R2 = r2_score(test_targets_rescaled, rf_pred)
-    # rf_OOS_GW_R2 = GW_R2_score(rf_MSE, hist_MSE)
 
     # Plot Random Forest target predictions
     rf_pred = rf_pred.flatten()
@@ -495,7 +487,7 @@ for country_data in countries:
 
 
     ################################################################
-    # Simple LSTM Model - was working on previous run, will fix
+    # Simple LSTM Model
     ################################################################
     def build_simple_model():
         model = Sequential()
@@ -534,13 +526,9 @@ for country_data in countries:
     plt.legend()
     plt.show()
 
-
     ################################################################
-    # LSTM Mothen del
+    # LSTM Model
     ################################################################
-
-    # train_factors_rescaled = train_factors_rescaled.reshape((-1, time_steps, train_factors_rescaled.shape[1]))
-    # test_factors_rescaled = test_factors_rescaled.reshape((-1, time_steps, test_factors_rescaled.shape[1]))
 
     def build_model(hp):
         model = Sequential()
@@ -552,12 +540,9 @@ for country_data in countries:
             kernel_regularizer=l2(hp.Float('l2', min_value=0.0001, max_value=0.01, sampling='LOG')),
             input_shape=(1, train_factors_rescaled.shape[2]),  # Input shape defined for one time step with all features
             return_sequences=hp.Int('num_rnn_layers', min_value=1, max_value=12, default=3) > 1
-            # Ensures last LSTM layer will not return sequences
-            # return_sequences=True
         )))
 
         # Dynamically add more LSTM layers based on the number of RNN layers hyperparameter
-        # num_layers = hp.Int('num_layers')
         for i in range(hp.Int('num_rnn_layers', min_value=1, max_value=12, default=3) - 1):
             model.add(LSTM(
                 units=hp.Int('num_units', min_value=32, max_value=128, default=32),
@@ -565,7 +550,6 @@ for country_data in countries:
                 recurrent_dropout=hp.Float('recurrent_dropout', min_value=0.0, max_value=0.5, default=0.2),
                 return_sequences=i < hp.Int('num_rnn_layers', min_value=1, max_value=12, default=3) - 2
             ))
-            # model.add(BatchNormalization())
         model.add(Dense(1, activation='linear'))
         model.compile(
             optimizer=keras.optimizers.Adam(
@@ -587,8 +571,6 @@ for country_data in countries:
                                               )
     bayesian_opt_tuner.search(train_factors_rescaled, train_targets_rescaled,
                               epochs=n_epochs,
-                              # batch_size = batch_size,
-                              # shuffle=False,
                               validation_data=(test_factors_rescaled, test_targets_rescaled),
                               validation_split=0.2,
                               verbose=1)
@@ -604,7 +586,6 @@ for country_data in countries:
     lstm_dRMSE = dRMSE(lstm_MSE, hist_MSE)
     lstm_MAPE = mean_absolute_percentage_error(test_targets_rescaled, lstm_pred)
     lstm_OOS_R2 = r2_score(test_targets_rescaled, lstm_pred)
-    # lstm_OOS_GW_R2 = GW_R2_score(lstm_MSE, hist_MSE)
 
     # Plot LSTM target predictions
     lstm_pred = lstm_pred.flatten()
@@ -630,7 +611,6 @@ for country_data in countries:
     print(f'dRMSE: {OLS_dRMSE}')
     print(f'MAPE: {OLS_MAPE}')
     print(f'OOS R2: {OLS_OOS_R2}')
-    # print(f'OOS GW R2: {OLS_OOS_GW_R2}')
     print('')
 
     # Ridge
@@ -640,7 +620,6 @@ for country_data in countries:
     print(f'dRMSE: {ridge_dRMSE}')
     print(f'MAPE: {ridge_MAPE}')
     print(f'OOS R2: {ridge_OOS_R2}')
-    # print(f'OOS GW R2: {ridge_OOS_GW_R2}')
     print('')
 
     # Lasso
@@ -650,7 +629,6 @@ for country_data in countries:
     print(f'dRMSE: {lasso_dRMSE}')
     print(f'MAPE: {lasso_MAPE}')
     print(f'OOS R2: {lasso_OOS_R2}')
-    # print(f'OOS GW R2: {lasso_OOS_GW_R2}')
     print('')
 
     # KNN
@@ -660,7 +638,6 @@ for country_data in countries:
     print(f'dRMSE: {knn_dRMSE}')
     print(f'MAPE: {knn_MAPE}')
     print(f'OOS R2: {knn_OOS_R2}')
-    # print(f'OOS GW R2: {knn_OOS_GW_R2}')
     print('')
 
     # Random Forest
@@ -670,7 +647,6 @@ for country_data in countries:
     print(f'dRMSE: {rf_dRMSE}')
     print(f'MAPE: {rf_MAPE}')
     print(f'OOS R2: {rf_OOS_R2}')
-    # print(f'OOS GW R2: {rf_OOS_GW_R2}')
     print('')
 
     # LSTM
@@ -680,7 +656,6 @@ for country_data in countries:
     print(f'dRMSE: {lstm_dRMSE}')
     print(f'MAPE: {lstm_MAPE}')
     print(f'OOS R2: {lstm_OOS_R2}')
-    # print(f'OOS GW R2: {lstm_OOS_GW_R2}')
     print('')
 
     # Simple LSTM
@@ -690,7 +665,6 @@ for country_data in countries:
     print(f'dRMSE: {simple_lstm_dRMSE}')
     print(f'MAPE: {simple_lstm_MAPE}')
     print(f'OOS R2: {simple_lstm_OOS_R2}')
-    # print(f'OOS GW R2: {simple_lstm_OOS_GW_R2}')
     print('')
 
     #######################################################
@@ -698,35 +672,6 @@ for country_data in countries:
     #######################################################
     # Create portfolio data, consisting of the index returns and risk-free return
     # NOTE: Index returns calculated as [P(t) / P(t-1)] - 1 from Excel
-    # NOTE: Risk free returns calculated as [Rfree(t) / Rfree(t-1)] - 1 from Excel
-
-    # if country_data.equals(US_data):
-    #     portfolio = pd.DataFrame(index=test_targets.index)
-    #     portfolio['IndexRet'] = GW_df.loc[test_targets.index, 'IndexRet']
-    #     portfolio['RfreeRet'] = GW_df.loc[test_targets.index, 'RfreeRet']
-    # elif country_data.equals(UK_data):
-    #     portfolio = pd.DataFrame(index=test_targets.index)
-    #     portfolio['IndexRet'] = index_data.loc[test_targets.index, 'UK_IndexRet']
-    #     portfolio['RfreeRet'] = index_data.loc[test_targets.index, 'UK_RfreeRet']
-    # elif country_data.equals(AU_data):
-    #     portfolio = pd.DataFrame(index=test_targets.index)
-    #     portfolio['IndexRet'] = index_data_AU.loc[test_targets.index, 'AU_IndexRet']
-    #     portfolio['RfreeRet'] = index_data_AU.loc[test_targets.index, 'AU_RfreeRet']
-    # elif country_data.equals(DE_data):
-    #     portfolio = pd.DataFrame(index=test_targets.index)
-    #     portfolio['IndexRet'] = index_data.loc[test_targets.index, 'DE_IndexRet']
-    #     portfolio['RfreeRet'] = index_data.loc[test_targets.index, 'DE_RfreeRet']
-    # elif country_data.equals(FR_data):
-    #     portfolio = pd.DataFrame(index=test_targets.index)
-    #     portfolio['IndexRet'] = index_data.loc[test_targets.index, 'FR_IndexRet']
-    #     portfolio['RfreeRet'] = index_data.loc[test_targets.index, 'FR_RfreeRet']
-    # elif country_data.equals(JP_data):
-    #     portfolio = pd.DataFrame(index=test_targets.index)
-    #     portfolio['IndexRet'] = index_data_JP.loc[test_targets.index, 'JP_IndexRet']
-    #     portfolio['RfreeRet'] = index_data_JP.loc[test_targets.index, 'JP_RfreeRet']
-    # else:
-    #     print('Invalid country input given')
-
 
     if country_data.equals(US_data):
         portfolio = pd.DataFrame(index=test_targets.index)
@@ -769,7 +714,6 @@ for country_data in countries:
 
     # Ridge
     # Since scaled, retransform predicted values to original scale
-    # ridge_pred_origScale = (ridge_pred * std_scaler.scale_) + std_scaler.mean_
     ridge_pred_origScale = std_target_scaler.inverse_transform(ridge_pred.reshape(-1, 1))
 
     # Calculate metrics
@@ -784,7 +728,6 @@ for country_data in countries:
 
     # Lasso
     # Since scaled, retransform predicted values to original scale
-    # lasso_pred_origScale = (lasso_pred * std_scaler.scale_) + std_scaler.mean_
     lasso_pred_origScale = std_target_scaler.inverse_transform(lasso_pred.reshape(-1, 1))
 
     # Calculate metrics
