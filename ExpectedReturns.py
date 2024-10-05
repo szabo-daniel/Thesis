@@ -168,10 +168,10 @@ for factor in JP_factor_list:
 print('JAPAN DATA')
 print(JP_data)
 print('')
+
 ##########################################################
 # Model building below
 ##########################################################
-
 n_iterations = 5
 test_size = 0.2
 # LSTM params
