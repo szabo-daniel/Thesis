@@ -59,7 +59,6 @@ print(GW_df)
 # United States
 # Line up quarterly dates for appending
 US_factors = pd.read_excel('Country Data.xlsx', sheet_name='US Data', index_col='Date', parse_dates=True)
-# US_factors.index = US_factors.index - pd.Timedelta(days=1)
 
 # Create list of all columns to iterate through
 US_factor_list = US_factors.columns.tolist()
