@@ -217,6 +217,7 @@ for country_data in countries:
     print('=====================================================')
     print(f'{country} models building...')
     print('=====================================================')
+
     #############################################################
     # Split data into factors and targets, lagging appropriately
     #############################################################
@@ -302,6 +303,7 @@ for country_data in countries:
 
     print('OLS model complete')
     print('')
+
     ################################################################
     # Model 2 - Ridge Regression
     ################################################################
@@ -334,6 +336,7 @@ for country_data in countries:
 
     print('Ridge regression model complete')
     print('')
+
     ################################################################
     # Model 3 - Lasso Regression
     ################################################################
@@ -713,7 +716,7 @@ for country_data in countries:
     print('')
 
     # Ridge
-    # Since scaled, retransform predicted values to original scale
+    # Since scaled, transform predicted values to original scale
     ridge_pred_origScale = std_target_scaler.inverse_transform(ridge_pred.reshape(-1, 1))
 
     # Calculate metrics
@@ -727,7 +730,7 @@ for country_data in countries:
     print('')
 
     # Lasso
-    # Since scaled, retransform predicted values to original scale
+    # Since scaled, transform predicted values to original scale
     lasso_pred_origScale = std_target_scaler.inverse_transform(lasso_pred.reshape(-1, 1))
 
     # Calculate metrics
@@ -741,7 +744,7 @@ for country_data in countries:
     print('')
 
     # KNN
-    # Since scaled, retransform predicted values to original scale
+    # Since scaled, transform predicted values to original scale
     knn_pred_origScale = mm_target_scaler.inverse_transform(knn_pred.reshape(-1, 1))
 
     # Calculate metrics
@@ -755,7 +758,7 @@ for country_data in countries:
     print('')
 
     # Random Forest
-    # Since scaled, retransform predicted values to original scale
+    # Since scaled, transform predicted values to original scale
     rf_pred_origScale = mm_target_scaler.inverse_transform(rf_pred.reshape(-1, 1))
 
     # Calculate metrics
@@ -769,7 +772,7 @@ for country_data in countries:
     print('')
 
     # Bayesian LSTM
-    # Since scaled, retransform predicted values to original scale
+    # Since scaled, transform predicted values to original scale
     lstm_pred_origScale = mm_target_scaler.inverse_transform(lstm_pred.reshape(-1, 1))
 
     # Calculate metrics
@@ -783,7 +786,7 @@ for country_data in countries:
     print('')
 
     # Simple LSTM
-    # Since scaled, retransform predicted values to original scale
+    # Since scaled, transform predicted values to original scale
     simple_lstm_pred_origScale = mm_target_scaler.inverse_transform(simple_lstm_pred.reshape(-1, 1))
 
     # Calculate metrics
