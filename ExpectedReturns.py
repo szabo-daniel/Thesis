@@ -73,8 +73,8 @@ for factor in US_factor_list:
     US_data[factor] = US_factors[factor]
 
 # Read in GW factors (comment out if not used)
-US_data['div_price'] = (np.log(GW_df['D12']) - np.log(GW_df['Index'])).values # makes sure that indexes aren't an issue, an pastes only values over. Start at 1 to omit header as a value
-US_data['div_yield'] = (np.log(GW_df['D12']) - np.log(GW_df['Index'].shift(1))).values #check logic on this, should work
+US_data['div_price'] = (np.log(GW_df['D12']) - np.log(GW_df['Index'])).values # Start at 1 to omit header as a value
+US_data['div_yield'] = (np.log(GW_df['D12']) - np.log(GW_df['Index'].shift(1))).values
 US_data['earnings_price'] = (np.log(GW_df['E12']) - np.log(GW_df['Index'])).values
 US_data['dividend_payout'] = (np.log(GW_df['D12']) - np.log(GW_df['E12'])).values
 US_data['term_spread'] = (GW_df['lty'] - GW_df['tbl']).values
@@ -89,7 +89,7 @@ print('US DATA')
 print(US_data)
 print('')
 
-# Note: Read in sheet containing index and risk-free return data for other countries, since no longer using Goyal and Welch data.
+# Note: Read in index and risk-free return data for other countries. No longer using Goyal and Welch data.
 index_data = pd.read_excel('Country Data.xlsx', sheet_name='Index Data', index_col='Date', parse_dates=True)
 index_data_AU = pd.read_excel('Country Data.xlsx', sheet_name='AU Index Data', index_col='Date', parse_dates=True)
 index_data_JP = pd.read_excel('Country Data.xlsx', sheet_name='JP Index Data', index_col='Date', parse_dates=True)
@@ -273,7 +273,7 @@ for country_data in countries:
 
     hist_pred_test = hist_pred_all[-len(test_targets):] # Get test period data for the historical mean model
 
-    hist_MSE = mean_squared_error(test_targets, hist_pred_test) # Used as benchmark for subsequent model evaulation
+    hist_MSE = mean_squared_error(test_targets, hist_pred_test) # Used as benchmark for subsequent model evaluation
 
     # Model 1 - OLS linear regression model (kitchen sink)
     OLS = LinearRegression()
@@ -423,7 +423,7 @@ for country_data in countries:
     # Random forest (hyperparameter-optimized)
     ################################################################
     print('Generating random forest model...')
-    factor_count = int(len(factors.columns))  # Should be 22 in total
+    factor_count = int(len(factors.columns))
     test_scores_rf = []
 
     max_factors_list = list(range(factor_count, 0, -1))
@@ -488,7 +488,6 @@ for country_data in countries:
     train_factors_rescaled = train_factors_rescaled.reshape((-1, time_steps, train_factors_rescaled.shape[1]))
     test_factors_rescaled = test_factors_rescaled.reshape((-1, time_steps, test_factors_rescaled.shape[1]))
 
-
     ################################################################
     # Simple LSTM Model
     ################################################################
@@ -520,7 +519,6 @@ for country_data in countries:
     simple_lstm_dRMSE = dRMSE(simple_lstm_MSE, hist_MSE)
     simple_lstm_MAPE = mean_absolute_percentage_error(test_targets_rescaled, simple_lstm_pred)
     simple_lstm_OOS_R2 = r2_score(test_targets_rescaled, simple_lstm_pred)
-    # simple_lstm_OOS_GW_R2 = GW_R2_score(simple_lstm_MSE, hist_MSE)
 
     pred_series_simple_LSTM.plot(label='Predicted')
     actual_rescaled_series.plot(label='Actual')
@@ -562,7 +560,6 @@ for country_data in countries:
             metrics=['mse']
         )
         return model
-
 
     bayesian_opt_tuner = BayesianOptimization(build_model,
                                               objective='mse',
@@ -705,7 +702,7 @@ for country_data in countries:
 
     print(f'{country} Portfolios')
     # OLS
-    # If predicted equity risk premium is positive, invest in market index, otherwise, invest in risk-free asset
+    # If predicted equity risk premium is positive, invest in market index, otherwise invest in risk-free asset
     ols_returns = np.where(OLS_pred > 0, portfolio['IndexRet'], portfolio['RfreeRet'])
     mean_ols_returns = np.mean(ols_returns)
     std_ols_returns = np.std(ols_returns)
