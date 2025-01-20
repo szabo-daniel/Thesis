@@ -186,7 +186,7 @@ mm_target_scaler = MinMaxScaler(feature_range=(0, 1))
 std_factor_scaler = StandardScaler()
 std_target_scaler = StandardScaler()
 
-countries = [US_data, UK_data, AU_data, DE_data, FR_data, JP_data]
+countries = [US_data, JP_data]
 
 def GW_R2_score(MSE_A, MSE_N):
     # MSE_A is the mean squared error of the test model
@@ -242,7 +242,6 @@ for country_data in countries:
     train_factors_standard, test_factors_standard, train_targets_standard, test_targets_standard = train_test_split(factors_standard, targets_standard, test_size=test_size, shuffle=False)
     train_factors_rescaled, test_factors_rescaled, train_targets_rescaled, test_targets_rescaled = train_test_split(factors_rescaled, targets_rescaled, test_size=test_size, shuffle=False)
 
-    #Note: Comment this out if not needed:
     train_factors_standard_rescaled = scale(train_factors_rescaled)
     train_targets_standard_rescaled = scale(train_targets_rescaled)
     test_factors_standard_rescaled = scale(test_factors_rescaled)
